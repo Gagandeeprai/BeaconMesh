@@ -1,0 +1,6 @@
+{
+  "name": "BeaconMesh",
+  "description": "Maritime Emergency OS - Real-time overview of maritime emergencies and responses.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

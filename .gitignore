@@ -1,0 +1,24 @@
+# Node dependencies
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Python environment
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Go builds
+backend/server
+backend/server.exe
+
+# VS Code & OS
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Archive files
+beaconmesh.zip

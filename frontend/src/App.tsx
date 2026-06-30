@@ -1,0 +1,498 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useEffect } from "react";
+import Sidebar from "./components/Sidebar";
+import Header from "./components/Header";
+import SummaryCards from "./components/SummaryCards";
+import MapOverview from "./components/MapOverview";
+import ActiveMissionPanel from "./components/ActiveMissionPanel";
+import RecentAlertsPanel from "./components/RecentAlertsPanel";
+import WeatherPanel from "./components/WeatherPanel";
+import LiveMapConsole from "./components/LiveMapConsole";
+
+import AlertsView from "./components/AlertsView";
+import VesselsView from "./components/VesselsView";
+import MissionsView from "./components/MissionsView";
+import AnalyticsView from "./components/AnalyticsView";
+import ReportsView from "./components/ReportsView";
+import SettingsView from "./components/SettingsView";
+
+import { Vessel, Alert, Mission, WeatherCondition } from "./types";
+import { INITIAL_VESSELS, INITIAL_ALERTS, INITIAL_MISSIONS, DEFAULT_WEATHER } from "./data";
+import { SimulationEngine, eventBus } from "./simulation";
+
+export default function App() {
+  const [currentTab, setCurrentTab] = useState<string>("dashboard");
+  const [mode, setMode] = useState<"live" | "hybrid" | "simulation">("hybrid");
+
+  // State Management (synced from central SimulationEngine)
+  const [engine] = useState(() => new SimulationEngine(INITIAL_VESSELS, INITIAL_ALERTS, INITIAL_MISSIONS));
+  const [vessels, setVessels] = useState<Vessel[]>(engine.vessels);
+  const [alerts, setAlerts] = useState<Alert[]>(engine.alerts);
+  const [missions, setMissions] = useState<Mission[]>(engine.missions);
+  const [liveAISVessels, setLiveAISVessels] = useState<Vessel[]>([]);
+
+  // Selection Tracking
+  const [selectedAlert, setSelectedAlert] = useState<Alert | null>(INITIAL_ALERTS[0]);
+  const [selectedVessel, setSelectedVessel] = useState<Vessel | null>(INITIAL_VESSELS[0]);
+  
+  const [weather, setWeather] = useState<WeatherCondition>({
+    ...DEFAULT_WEATHER,
+    status: "online"
+  });
+
+  // Helper to map sea states from wave heights
+  const getSeaState = (waveHeight: number): string => {
+    if (waveHeight < 0.1) return "Calm (Glassy)";
+    if (waveHeight < 0.5) return "Calm (Rippled)";
+    if (waveHeight < 1.25) return "Smooth";
+    if (waveHeight < 2.5) return "Moderate";
+    if (waveHeight < 4.0) return "Rough";
+    return "Very Rough";
+  };
+
+  // Synchronized Selection Logic
+  const handleSelectAlert = (alert: Alert | null) => {
+    setSelectedAlert(alert);
+    if (alert) {
+      const matchVessel = engine.vessels.find(v => v.id === alert.vesselId) || null;
+      setSelectedVessel(matchVessel);
+    } else {
+      setSelectedVessel(null);
+    }
+  };
+
+  const handleSelectVessel = (vessel: Vessel | null) => {
+    setSelectedVessel(vessel);
+    if (vessel) {
+      const matchAlert = engine.alerts.find(a => a.vesselId === vessel.id) || null;
+      setSelectedAlert(matchAlert);
+    } else {
+      setSelectedAlert(null);
+    }
+  };
+
+  // 1-second Simulation Engine Ticker Loop
+  useEffect(() => {
+    if (mode === "live") return;
+    const interval = setInterval(() => {
+      engine.tick(weather, mode);
+      setVessels([...engine.vessels]);
+      setAlerts([...engine.alerts]);
+      setMissions([...engine.missions]);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [weather, mode, engine]);
+
+  // 30-second AIS telemetry fetcher
+  useEffect(() => {
+    if (mode === "simulation") {
+      setLiveAISVessels([]);
+      return;
+    }
+
+    const fetchAIS = async () => {
+      try {
+        const res = await fetch("http://localhost:8080/api/v1/ais");
+        if (res.ok) {
+          const data = await res.json();
+          const mapped: Vessel[] = data.map((v: any) => ({
+            id: v.id,
+            name: v.name,
+            type: v.type,
+            status: "LiveAIS",
+            latitude: v.latitude,
+            longitude: v.longitude,
+            speed: v.speed,
+            heading: v.heading,
+            peopleOnboard: v.peopleOnboard,
+            cargo: v.cargo,
+            destination: v.destination,
+            isLiveAIS: true
+          }));
+          setLiveAISVessels(mapped);
+        }
+      } catch (err) {
+        console.error("Failed to fetch AIS telemetry:", err);
+      }
+    };
+
+    fetchAIS();
+    const interval = setInterval(fetchAIS, 30000);
+    return () => clearInterval(interval);
+  }, [mode]);
+
+  // 10-minute Weather live fetcher
+  useEffect(() => {
+    const fetchWeather = async () => {
+      try {
+        const res = await fetch("http://localhost:8080/api/v1/weather");
+        if (res.ok) {
+          const data = await res.json();
+          setWeather({
+            condition: data.weather.condition,
+            temp: data.weather.temperature,
+            windSpeed: data.weather.windSpeed,
+            windDirection: data.weather.windDirection,
+            waveHeight: data.marine.waveHeight,
+            wavePeriod: data.marine.wavePeriod,
+            waveDirection: data.marine.waveDirection,
+            visibility: data.weather.visibility,
+            seaState: getSeaState(data.marine.waveHeight),
+            updatedAt: new Date(data.updatedAt).toLocaleTimeString(),
+            advisory: data.advisory,
+            status: "online"
+          });
+        } else {
+          setWeather(prev => ({ ...prev, status: "offline" }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch live weather:", err);
+        setWeather(prev => ({ ...prev, status: "offline" }));
+      }
+    };
+
+    fetchWeather();
+    const interval = setInterval(fetchWeather, 600000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Listen to SOS Alarms spawned inside the engine to sync selections
+  useEffect(() => {
+    const sub = eventBus.subscribe("SOSCreated", (newAlert: Alert) => {
+      setSelectedAlert(newAlert);
+      const matchVessel = engine.vessels.find(v => v.id === newAlert.vesselId) || null;
+      setSelectedVessel(matchVessel);
+      
+      setAlerts([...engine.alerts]);
+      setVessels([...engine.vessels]);
+    });
+    return sub;
+  }, [engine]);
+
+  // Sync Missions assigned inside engine
+  useEffect(() => {
+    const sub = eventBus.subscribe("MissionAssigned", (newMission: Mission) => {
+      setMissions([...engine.missions]);
+      setAlerts([...engine.alerts]);
+      setVessels([...engine.vessels]);
+      
+      const matchAlert = engine.alerts.find(a => a.id === newMission.alertId) || null;
+      if (matchAlert) setSelectedAlert(matchAlert);
+    });
+    return sub;
+  }, [engine]);
+
+  // Combined filters based on the selected mode
+  const displayVessels = mode === "live" 
+    ? liveAISVessels 
+    : mode === "hybrid" 
+    ? [...vessels, ...liveAISVessels] 
+    : vessels;
+
+  const displayAlerts = mode === "live" ? [] : alerts;
+  const displayMissions = mode === "live" ? [] : missions;
+
+  // State Mutator: Trigger a new distress alert broadcast
+  const handleTriggerAlert = (newAlertData: Omit<Alert, "id" | "time" | "location">) => {
+    engine.triggerSOS(newAlertData.vesselId, newAlertData.type, newAlertData.description || "", weather);
+    setVessels([...engine.vessels]);
+    setAlerts([...engine.alerts]);
+    setMissions([...engine.missions]);
+    
+    // Set selection
+    const newlyCreatedAlert = engine.alerts.find(a => a.vesselId === newAlertData.vesselId) || null;
+    if (newlyCreatedAlert) {
+      setSelectedAlert(newlyCreatedAlert);
+      setSelectedVessel(engine.vessels.find(v => v.id === newAlertData.vesselId) || null);
+    }
+    setCurrentTab("dashboard");
+  };
+
+  // State Mutator: Assign Responder vessel to a distress target
+  const handleAssignResponder = (alertId: string, responderName: string, eta: number) => {
+    const responder = engine.vessels.find(v => v.name === responderName || v.id === responderName);
+    const alert = engine.alerts.find(a => a.id === alertId);
+    
+    if (responder && alert) {
+      responder.destination = `${alert.vesselName} Intercept`;
+      responder.status = "Support";
+      
+      alert.responder = responderName;
+      alert.etaMin = eta;
+      alert.status = "Acknowledged";
+      
+      const missionId = `MSN-2026-${Math.floor(Math.random() * 9000) + 1000}`;
+      const newMission: Mission = {
+        id: missionId,
+        alertId: alert.id,
+        vesselId: alert.vesselId,
+        vesselName: alert.vesselName,
+        type: alert.type === "Medical Emergency" ? "Medical Evacuation (MEDEVAC)" : "Towing & Search-and-Rescue (SAR)",
+        status: "Dispatched",
+        responder: responderName,
+        startTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        etaMin: eta,
+        peopleOnboard: alert.peopleOnboard,
+        logs: [
+          {
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            text: `Manual assignment: responder '${responderName}' dispatched to distress target.`
+          }
+        ]
+      };
+      
+      engine.missions = [newMission, ...engine.missions];
+      
+      setVessels([...engine.vessels]);
+      setAlerts([...engine.alerts]);
+      setMissions([...engine.missions]);
+      
+      setSelectedAlert({ ...alert });
+      setSelectedVessel(engine.vessels.find(v => v.id === alert.vesselId) || null);
+    }
+  };
+
+  // State Mutator: Add log comments to missions
+  const handleAddMissionLog = (missionId: string, logText: string) => {
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    engine.missions = engine.missions.map(m => m.id === missionId ? {
+      ...m,
+      logs: [...m.logs, { time: timestamp, text: logText }]
+    } : m);
+    setMissions([...engine.missions]);
+  };
+
+  // State Mutator: Close and Resolve a rescue mission
+  const handleCompleteMission = (missionId: string) => {
+    const targetMission = engine.missions.find(m => m.id === missionId);
+    if (!targetMission) return;
+
+    engine.missions = engine.missions.map(m => m.id === missionId ? { ...m, status: "Completed" } : m);
+    engine.alerts = engine.alerts.map(a => a.id === targetMission.alertId ? { ...a, status: "Resolved", etaMin: 0 } : a);
+    engine.vessels = engine.vessels.map(v => v.id === targetMission.vesselId ? { ...v, status: "Completed", speed: 8, heading: 90, destination: "Mangalore Port" } : v);
+
+    setMissions([...engine.missions]);
+    setAlerts([...engine.alerts]);
+    setVessels([...engine.vessels]);
+
+    if (selectedAlert?.id === targetMission.alertId) {
+      setSelectedAlert(prev => prev ? { ...prev, status: "Resolved", etaMin: 0 } : null);
+    }
+    if (selectedVessel?.id === targetMission.vesselId) {
+      setSelectedVessel(prev => prev ? { ...prev, status: "Completed", speed: 8, heading: 90, destination: "Mangalore Port" } : null);
+    }
+  };
+
+  // State Mutator: Manual transponder updates
+  const handleUpdateVesselCoords = (id: string, lat: number, lng: number, speed: number, heading: number) => {
+    engine.vessels = engine.vessels.map(v => v.id === id ? {
+      ...v,
+      latitude: lat,
+      longitude: lng,
+      speed,
+      heading
+    } : v);
+    setVessels([...engine.vessels]);
+
+    if (selectedVessel?.id === id) {
+      setSelectedVessel(prev => prev ? {
+        ...prev,
+        latitude: lat,
+        longitude: lng,
+        speed,
+        heading
+      } : null);
+    }
+  };
+
+  // Render Sub-Views
+  const renderActiveView = () => {
+    switch (currentTab) {
+      case "dashboard":
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-10 gap-8">
+            {/* Map and Summary Table (Left 70%) */}
+            <div className="lg:col-span-7 flex flex-col gap-8">
+              <MapOverview 
+                vessels={displayVessels} 
+                alerts={displayAlerts} 
+                selectedVessel={selectedVessel}
+                onSelectVessel={handleSelectVessel}
+              />
+              <SummaryCards alerts={displayAlerts} vessels={displayVessels} missions={displayMissions} />
+              <RecentAlertsPanel 
+                alerts={displayAlerts} 
+                onSelectAlert={handleSelectAlert} 
+                selectedAlertId={selectedAlert?.id}
+                onViewAllClick={() => setCurrentTab("alerts")}
+              />
+            </div>
+
+            {/* Side Action Panels (Right 30%) */}
+            <div className="lg:col-span-3 flex flex-col gap-8 justify-start">
+              <ActiveMissionPanel 
+                selectedAlert={selectedAlert}
+                onAssignResponder={handleAssignResponder}
+                supportVessels={vessels.filter(v => v.status === "Support")}
+                onViewMissionDetails={(alert) => {
+                  const m = missions.find(ms => ms.alertId === alert.id);
+                  if (m) {
+                    setCurrentTab("missions");
+                  } else {
+                    handleAssignResponder(alert.id, "CGS Samudra Paheredar", 25);
+                    setCurrentTab("missions");
+                  }
+                }}
+              />
+              <WeatherPanel weather={weather} onViewForecastClick={() => setCurrentTab("weather")} />
+            </div>
+          </div>
+        );
+      
+      case "alerts":
+        return (
+          <AlertsView 
+            alerts={displayAlerts} 
+            onTriggerAlert={handleTriggerAlert} 
+            onSelectAlert={handleSelectAlert}
+            setCurrentTab={setCurrentTab}
+          />
+        );
+
+      case "vessels":
+        return (
+          <VesselsView 
+            vessels={displayVessels} 
+            onUpdateVesselCoords={handleUpdateVesselCoords}
+            onSelectVessel={handleSelectVessel}
+            selectedVessel={selectedVessel}
+          />
+        );
+
+      case "missions":
+        return (
+          <MissionsView 
+            missions={displayMissions} 
+            onAddMissionLog={handleAddMissionLog} 
+            onCompleteMission={handleCompleteMission}
+            selectedAlert={selectedAlert}
+            onSelectAlert={handleSelectAlert}
+            alerts={displayAlerts}
+          />
+        );
+
+      case "map":
+        return (
+          <div className="p-1 flex flex-col h-full">
+            <LiveMapConsole 
+              vessels={displayVessels} 
+              alerts={displayAlerts}
+              weather={weather}
+              mode={mode}
+              selectedVessel={selectedVessel}
+              onSelectVessel={handleSelectVessel}
+              setCurrentTab={setCurrentTab}
+            />
+          </div>
+        );
+
+      case "weather":
+        return (
+          <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="md:col-span-1">
+              <WeatherPanel weather={weather} onViewForecastClick={() => {}} />
+            </div>
+            <div className="md:col-span-2 bg-[#020a14] border border-[#0d2238] rounded-xl p-6 shadow-lg space-y-4 text-slate-200">
+              <h3 className="text-sm font-bold text-slate-100 font-sans border-b border-[#0d2238] pb-3">Mangalore Region Wave Radar (Swell Monitor)</h3>
+              <div className="space-y-4">
+                <p className="text-xs text-slate-400 font-sans">
+                  Live readings from the Malpe Coastal Radar and wave telemetry stations along the West Coast:
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs font-mono">
+                  <div className="bg-[#05162a] p-3 rounded border border-[#0d2238]">
+                    <span className="text-slate-500 text-[10px]">CURRENT WAVE HEIGHT</span>
+                    <strong className="text-[#00e5ff] text-base block mt-1">{weather.waveHeight} meters</strong>
+                  </div>
+                  <div className="bg-[#05162a] p-3 rounded border border-[#0d2238]">
+                    <span className="text-slate-500 text-[10px]">WIND VELOCITY</span>
+                    <strong className="text-[#00e5ff] text-base block mt-1">{weather.windSpeed} km/h • {weather.windDirection}</strong>
+                  </div>
+                  <div className="bg-[#05162a] p-3 rounded border border-[#0d2238]">
+                    <span className="text-slate-500 text-[10px]">SEA TEMPS</span>
+                    <strong className="text-slate-200 text-base block mt-1">{weather.temp}°C</strong>
+                  </div>
+                </div>
+
+                <div className="space-y-2 text-xs leading-relaxed bg-[#020d1a] border border-blue-900/10 p-4 rounded-xl text-slate-300">
+                  <h4 className="font-bold text-slate-200 uppercase tracking-wider text-[10px] text-[#00e5ff]">Vessel Precautionary Directives</h4>
+                  <p>All deep-sea fishing trawlers departing Malpe and Mangalore docks must verify dual VHF transceiver loops are intact. If swells exceed 2.5 meters, local harbor masters will restrict departing transits automatically.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case "analytics":
+        return <AnalyticsView />;
+
+      case "reports":
+        return <ReportsView alerts={alerts} missions={missions} />;
+
+      case "settings":
+        return <SettingsView weather={weather} onUpdateWeather={setWeather} />;
+
+      default:
+        return <div className="p-8 text-center text-slate-500 font-mono">View coming soon.</div>;
+    }
+  };
+
+  // Header Subtitle Resolver
+  const getHeaderSubtext = () => {
+    switch (currentTab) {
+      case "dashboard": return "Real-time overview of active maritime emergencies and responses";
+      case "alerts": return "Log index of Digital Selective Calling signals and distress broadcasts";
+      case "vessels": return "AIS Transponder Fleet tracking and cargo specification matrix";
+      case "missions": return "Active Search and Rescue (SAR) incident logs and dispatched responder streams";
+      case "map": return "Extended tactical geographic visualization grid for maritime sectors";
+      case "weather": return "Meteorological wave swell vectors and marine safety advisories";
+      case "analytics": return "Aggregated fleet response performance charts and statistical indexes";
+      case "reports": return "Compile official naval closeout incident documents powered by Gemini AI";
+      case "settings": return "Override weather simulators and audit system connectivity structures";
+      default: return "Maritime Emergency Management OS";
+    }
+  };
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-[#010811] text-slate-100 font-sans">
+      {/* Dynamic Navigation Sidebar */}
+      <Sidebar 
+        currentTab={currentTab} 
+        setCurrentTab={setCurrentTab} 
+        onSendBroadcastClick={() => setCurrentTab("alerts")}
+        activeAlertsCount={alerts.filter(a => a.status !== "Resolved").length}
+      />
+
+      {/* Main Core Window Content */}
+      <div className="flex-1 flex flex-col overflow-hidden relative">
+        <Header 
+          title={currentTab.toUpperCase()} 
+          subtitle={getHeaderSubtext()} 
+          activeAlerts={displayAlerts}
+          onSelectAlert={handleSelectAlert}
+          setCurrentTab={setCurrentTab}
+          mode={mode}
+          onModeChange={setMode}
+        />
+
+        {/* Content Viewer */}
+        <main className="flex-1 overflow-y-auto p-8" style={{ background: "radial-gradient(ellipse at top, rgba(3,17,34,0.3) 0%, #010811 70%)" }}>
+          {renderActiveView()}
+        </main>
+      </div>
+    </div>
+  );
+}

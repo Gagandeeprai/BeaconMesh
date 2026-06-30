@@ -1,0 +1,349 @@
+﻿/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState } from "react";
+import { Plus, Search, AlertTriangle, AlertOctagon, Heart, Flame, ShieldAlert, Compass, CheckCircle } from "lucide-react";
+import { Alert, AlertType, AlertSeverity } from "../types";
+import { EMERGENCY_TYPES } from "../data";
+
+interface AlertsViewProps {
+  alerts: Alert[];
+  onTriggerAlert: (newAlert: Omit<Alert, "id" | "time" | "location">) => void;
+  onSelectAlert: (alert: Alert) => void;
+  setCurrentTab: (tab: string) => void;
+}
+
+export default function AlertsView({ 
+  alerts, 
+  onTriggerAlert, 
+  onSelectAlert,
+  setCurrentTab 
+}: AlertsViewProps) {
+  const [search, setSearch] = useState("");
+  const [severityFilter, setSeverityFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
+
+  // Form states for triggering custom mock emergencies
+  const [formVesselName, setFormVesselName] = useState("");
+  const [formVesselId, setFormVesselId] = useState("");
+  const [formType, setFormType] = useState<AlertType>("Engine Failure");
+  const [formSeverity, setFormSeverity] = useState<AlertSeverity>("High");
+  const [formPeopleOnboard, setFormPeopleOnboard] = useState(5);
+  const [formLat, setFormLat] = useState(13.1);
+  const [formLng, setFormLng] = useState(74.4);
+  const [formDesc, setFormDesc] = useState("");
+  const [showTriggerForm, setShowTriggerForm] = useState(false);
+
+  const handleSubmitMockAlert = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formVesselName || !formVesselId) return;
+
+    onTriggerAlert({
+      vesselId: formVesselId.toUpperCase(),
+      vesselName: formVesselName,
+      type: formType,
+      latitude: Number(formLat),
+      longitude: Number(formLng),
+      status: "In Progress",
+      severity: formSeverity,
+      peopleOnboard: Number(formPeopleOnboard),
+      description: formDesc || `Vessel reporting active ${formType} at maritime zone. Urgently requesting naval support.`
+    });
+
+    // Reset Form
+    setFormVesselName("");
+    setFormVesselId("");
+    setFormDesc("");
+    setShowTriggerForm(false);
+  };
+
+  const filteredAlerts = alerts.filter(a => {
+    const matchesSearch = a.vesselName.toLowerCase().includes(search.toLowerCase()) || 
+                          a.vesselId.toLowerCase().includes(search.toLowerCase()) ||
+                          a.type.toLowerCase().includes(search.toLowerCase());
+    const matchesSeverity = severityFilter === "All" || a.severity === severityFilter;
+    const matchesStatus = statusFilter === "All" || a.status === statusFilter;
+    return matchesSearch && matchesSeverity && matchesStatus;
+  });
+
+  return (
+    <div id="alerts-view-container" className="p-8 space-y-6 overflow-y-auto max-h-[calc(100vh-80px)]">
+      {/* Search and Action Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-[#020a14] border border-[#0d2238] p-4 rounded-xl shadow-md">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search emergencies..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8 pr-3 py-1.5 w-64 text-xs rounded-lg bg-[#05162a] text-slate-200 border border-[#0d2238] focus:border-[#00e5ff] focus:outline-none transition-all font-sans"
+            />
+            <Search className="w-4 h-4 text-slate-500 absolute left-2.5 top-2" />
+          </div>
+
+          <select
+            value={severityFilter}
+            onChange={(e) => setSeverityFilter(e.target.value)}
+            className="bg-[#05162a] text-slate-200 border border-[#0d2238] text-xs font-medium px-3 py-1.5 rounded-lg focus:outline-none focus:border-[#00e5ff]"
+          >
+            <option value="All">All Severities</option>
+            <option value="High">High Severity</option>
+            <option value="Medium">Medium Severity</option>
+            <option value="Low">Low Severity</option>
+          </select>
+
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="bg-[#05162a] text-slate-200 border border-[#0d2238] text-xs font-medium px-3 py-1.5 rounded-lg focus:outline-none focus:border-[#00e5ff]"
+          >
+            <option value="All">All Statuses</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Acknowledged">Acknowledged</option>
+            <option value="Resolved">Resolved</option>
+          </select>
+        </div>
+
+        <button
+          id="btn-toggle-trigger-form"
+          onClick={() => setShowTriggerForm(!showTriggerForm)}
+          className="flex items-center gap-1.5 py-1.5 px-4 rounded bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-md shadow-red-900/10 cursor-pointer transition-all"
+        >
+          <Plus className="w-4 h-4" />
+          Trigger Distress Broadcast
+        </button>
+      </div>
+
+      {/* Trigger Mock Distress Broadcast Form Dropdown */}
+      {showTriggerForm && (
+        <form 
+          id="mock-trigger-form"
+          onSubmit={handleSubmitMockAlert} 
+          className="bg-[#020d1a] border border-red-900/30 rounded-xl p-6 shadow-xl space-y-4 max-w-3xl animate-fadeIn"
+        >
+          <h4 className="text-sm font-bold text-red-200 uppercase tracking-wider font-mono flex items-center gap-2">
+            <AlertOctagon className="w-4 h-4 text-red-500" />
+            Distress Beacon Simulation Form
+          </h4>
+          <p className="text-xs text-slate-400 font-sans leading-relaxed">
+            Fill this form to simulate an incoming VHF Digital Selective Calling (DSC) distress broadcast from a regional vessel along the Karnataka coastline. This will update the map in real-time.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="text-[10px] text-slate-400 font-mono font-bold uppercase block mb-1">Vessel Name</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Malpe Queen"
+                value={formVesselName}
+                onChange={(e) => setFormVesselName(e.target.value)}
+                className="w-full bg-[#05162a] text-xs text-slate-200 border border-[#0d2238] rounded-lg px-3 py-2 focus:outline-none focus:border-red-500"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-400 font-mono font-bold uppercase block mb-1">Vessel Registration ID</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. IND-KA-12-8844"
+                value={formVesselId}
+                onChange={(e) => setFormVesselId(e.target.value)}
+                className="w-full bg-[#05162a] text-xs text-slate-200 border border-[#0d2238] rounded-lg px-3 py-2 focus:outline-none focus:border-red-500"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-400 font-mono font-bold uppercase block mb-1">Emergency Nature</label>
+              <select
+                value={formType}
+                onChange={(e) => setFormType(e.target.value as AlertType)}
+                className="w-full bg-[#05162a] text-xs text-slate-200 border border-[#0d2238] rounded-lg px-3 py-2 focus:outline-none focus:border-red-500"
+              >
+                {EMERGENCY_TYPES.map(t => (
+                  <option key={t.name} value={t.name}>{t.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label className="text-[10px] text-slate-400 font-mono font-bold uppercase block mb-1">Priority</label>
+              <select
+                value={formSeverity}
+                onChange={(e) => setFormSeverity(e.target.value as AlertSeverity)}
+                className="w-full bg-[#05162a] text-xs text-slate-200 border border-[#0d2238] rounded-lg px-3 py-2 focus:outline-none"
+              >
+                <option value="High">High Priority</option>
+                <option value="Medium">Medium Priority</option>
+                <option value="Low">Low Priority</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-400 font-mono font-bold uppercase block mb-1">Crew Size Onboard</label>
+              <input
+                type="number"
+                min="1"
+                required
+                value={formPeopleOnboard}
+                onChange={(e) => setFormPeopleOnboard(Number(e.target.value))}
+                className="w-full bg-[#05162a] text-xs text-slate-200 border border-[#0d2238] rounded-lg px-3 py-2 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-400 font-mono font-bold uppercase block mb-1">Latitude (N)</label>
+              <input
+                type="number"
+                step="0.001"
+                min="12.4"
+                max="13.7"
+                required
+                value={formLat}
+                onChange={(e) => setFormLat(Number(e.target.value))}
+                className="w-full bg-[#05162a] text-xs text-slate-200 border border-[#0d2238] rounded-lg px-3 py-2 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-400 font-mono font-bold uppercase block mb-1">Longitude (E)</label>
+              <input
+                type="number"
+                step="0.001"
+                min="73.4"
+                max="75.1"
+                required
+                value={formLng}
+                onChange={(e) => setFormLng(Number(e.target.value))}
+                className="w-full bg-[#05162a] text-xs text-slate-200 border border-[#0d2238] rounded-lg px-3 py-2 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[10px] text-slate-400 font-mono font-bold uppercase block mb-1">Distress Situation Brief</label>
+            <textarea
+              rows={3}
+              placeholder="Describe the nature of fire, mechanical, water ingress, or medical casualty in detail..."
+              value={formDesc}
+              onChange={(e) => setFormDesc(e.target.value)}
+              className="w-full bg-[#05162a] text-xs text-slate-200 border border-[#0d2238] rounded-lg p-3 focus:outline-none focus:border-red-500"
+            />
+          </div>
+
+          <div className="flex gap-3 justify-end pt-2">
+            <button
+              type="button"
+              onClick={() => setShowTriggerForm(false)}
+              className="py-1.5 px-4 text-xs font-semibold rounded text-slate-400 hover:text-slate-200 border border-[#0d2238] hover:bg-[#05162a]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="py-1.5 px-5 text-xs font-bold rounded bg-red-600 hover:bg-red-500 text-white shadow-md cursor-pointer"
+            >
+              Simulate Broadcast
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Main Alerts List Grid */}
+      <div id="alerts-grid" className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {filteredAlerts.length === 0 ? (
+          <div className="col-span-2 text-center py-16 bg-[#020a14] border border-[#0d2238] rounded-xl text-slate-500">
+            No maritime emergencies matched your filter conditions.
+          </div>
+        ) : (
+          filteredAlerts.map((alert) => {
+            const isResolved = alert.status === "Resolved";
+            return (
+              <div 
+                key={alert.id}
+                id={`alert-card-${alert.id}`}
+                className={`border rounded-xl p-5 shadow-lg transition-all duration-300 flex flex-col justify-between ${
+                  isSelectedAndPending(alert) 
+                    ? "bg-[#18090f] border-red-900/50 shadow-[0_4px_25px_rgba(239,68,68,0.05)]" 
+                    : "bg-[#020a14] border-[#0d2238] hover:border-[#1e4976]/60"
+                }`}
+              >
+                <div>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className={`p-1.5 rounded ${
+                        alert.severity === "High" ? "bg-red-500/15 text-red-400" : "bg-yellow-500/15 text-yellow-400"
+                      }`}>
+                        <AlertTriangle className="w-4 h-4" />
+                      </span>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-200">{alert.vesselName}</h4>
+                        <span className="text-[10px] text-slate-500 font-mono">{alert.id}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-1">
+                      <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded uppercase ${
+                        alert.status === "Resolved" 
+                          ? "bg-emerald-500/10 text-emerald-400" 
+                          : alert.status === "Acknowledged" 
+                          ? "bg-orange-500/10 text-orange-400" 
+                          : "bg-red-500/10 text-red-400 animate-pulse"
+                      }`}>
+                        {alert.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-2">
+                    <div className="flex justify-between text-[11px] font-mono border-b border-[#0d2238]/40 pb-1.5">
+                      <span className="text-slate-500">Incident:</span>
+                      <span className="text-slate-300 font-bold">{alert.type}</span>
+                    </div>
+                    <div className="flex justify-between text-[11px] font-mono border-b border-[#0d2238]/40 pb-1.5">
+                      <span className="text-slate-500">Time / Location:</span>
+                      <span className="text-slate-300">{alert.time} • {alert.location}</span>
+                    </div>
+                    <div className="flex justify-between text-[11px] font-mono border-b border-[#0d2238]/40 pb-1.5">
+                      <span className="text-slate-500">Personnel:</span>
+                      <span className="text-slate-300">{alert.peopleOnboard} Crew</span>
+                    </div>
+                    <p className="text-xs text-slate-400 leading-relaxed font-sans line-clamp-3 mt-3 italic">
+                      "{alert.description}"
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-[#0d2238] pt-4 mt-4">
+                  <div className="text-[10px] font-mono text-slate-500">
+                    {alert.responder ? (
+                      <span>Assigned: <strong className="text-slate-300">{alert.responder}</strong></span>
+                    ) : (
+                      <span className="text-red-400">Awaiting Command Responder</span>
+                    )}
+                  </div>
+
+                  <button
+                    id={`btn-inspect-alert-${alert.id}`}
+                    onClick={() => {
+                      onSelectAlert(alert);
+                      setCurrentTab("dashboard");
+                    }}
+                    className="py-1 px-3 bg-[#071d33] hover:bg-[#0b2240] border border-[#0d2238] hover:border-[#1e4976]/40 rounded text-xs font-semibold text-[#00e5ff] transition-all cursor-pointer"
+                  >
+                    Inspect Command Panel
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+
+  function isSelectedAndPending(alert: Alert) {
+    return alert.status !== "Resolved" && alert.severity === "High";
+  }
+}
