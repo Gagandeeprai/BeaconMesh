@@ -11,11 +11,13 @@ import {
   Radio, 
   Map, 
   CloudRain, 
+  Anchor,
   BarChart3, 
   FileText, 
   Settings,
   Bell,
-  ChevronRight
+  ChevronRight,
+  AlertTriangle
 } from "lucide-react";
 
 interface SidebarProps {
@@ -38,6 +40,7 @@ export default function Sidebar({
     { id: "missions", label: "Missions", icon: Radio },
     { id: "map", label: "Live Map", icon: Map },
     { id: "weather", label: "Weather", icon: CloudRain },
+    { id: "ports", label: "Ports", icon: Anchor },
     { id: "analytics", label: "Analytics", icon: BarChart3 },
     { id: "reports", label: "Reports", icon: FileText },
     { id: "settings", label: "Settings", icon: Settings },
@@ -48,8 +51,8 @@ export default function Sidebar({
       {/* Brand Section */}
       <div className="p-6 border-b border-[#0d2238] flex items-center gap-3.5">
         <div className="relative flex items-center justify-center w-11 h-11 rounded-xl bg-[#0070f3]/10 border border-[#0070f3]/40">
-          <Radio className="w-5.5 h-5.5 text-[#00e5ff] animate-pulse" />
-          <div className="absolute inset-0 rounded-xl bg-[#00e5ff]/5 filter blur-xs animate-pulse"></div>
+          <Radio className="w-5 h-5 text-[#00e5ff] animate-pulse" />
+          <div className="absolute inset-0 rounded-xl bg-[#00e5ff]/5 blur-sm animate-pulse"></div>
         </div>
         <div>
           <h1 className="text-[19px] font-bold text-slate-100 tracking-tight font-sans">
@@ -71,14 +74,14 @@ export default function Sidebar({
               key={item.id}
               id={`nav-${item.id}`}
               onClick={() => setCurrentTab(item.id)}
-              className={`w-full flex items-center justify-between px-4.5 py-3.5 rounded-xl text-sm font-medium transition-all duration-200 group ${
+              className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl text-sm font-medium transition-all duration-200 group ${
                 isActive 
                   ? "bg-[#0b2240] text-slate-100 border border-[#1e4976]/40 shadow-[0_0_15px_rgba(0,112,243,0.15)]" 
                   : "text-slate-400 hover:text-slate-200 hover:bg-[#07172a] border border-transparent"
               }`}
             >
               <div className="flex items-center gap-3.5">
-                <IconComponent className={`w-4.5 h-4.5 transition-colors ${
+                <IconComponent className={`w-4 h-4 transition-colors ${
                   isActive ? "text-[#00e5ff]" : "text-slate-400 group-hover:text-slate-200"
                 }`} />
                 <span className="font-sans text-sm tracking-wide">{item.label}</span>
@@ -102,18 +105,18 @@ export default function Sidebar({
         <button
           id="btn-quick-broadcast"
           onClick={onSendBroadcastClick}
-          className="w-full flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-red-950/40 to-red-900/10 hover:from-red-900/50 hover:to-red-900/20 border border-red-900/50 hover:border-red-600/60 transition-all duration-300 shadow-[0_4px_12px_rgba(239,68,68,0.05)] cursor-pointer group"
+          className="w-full flex items-center justify-center gap-2.5 py-3 rounded-xl bg-[#18090f] hover:bg-[#220c15] border border-red-900/50 hover:border-red-500/60 text-red-400 hover:text-red-300 transition-colors cursor-pointer text-sm font-semibold"
         >
-          <div className="flex items-center gap-3.5">
-            <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-red-500/20 text-red-400 font-bold text-xs font-mono border border-red-500/30">
-              SOS
-            </div>
-            <div className="text-left">
-              <div className="text-xs font-bold text-red-200 font-sans">Send Broadcast</div>
-              <div className="text-[10px] text-red-400 font-mono">SOS Alert</div>
-            </div>
-          </div>
-          <ChevronRight className="w-4 h-4 text-red-400 group-hover:translate-x-0.5 transition-transform" />
+          <AlertTriangle className="w-4 h-4" />
+          Broadcast SOS
+        </button>
+
+        <button className="mt-3 w-full py-3 rounded-xl bg-[#07172a] hover:bg-[#0b2240] border border-[#0d2238] text-slate-400 hover:text-slate-200 transition-colors cursor-pointer text-sm font-semibold">
+          Add Waypoint
+        </button>
+
+        <button className="mt-3 w-full py-3 rounded-xl bg-[#07172a] hover:bg-[#0b2240] border border-[#0d2238] text-slate-400 hover:text-slate-200 transition-colors cursor-pointer text-sm font-semibold">
+          Measure Distance
         </button>
       </div>
     </aside>

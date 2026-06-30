@@ -94,8 +94,8 @@ export default function SummaryCards({ alerts, vessels, missions }: SummaryCards
               <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider font-mono">
                 {card.title}
               </span>
-              <div className={`w-9.5 h-9.5 rounded-xl flex items-center justify-center ${card.themeClass.iconContainer}`}>
-                <Icon className="w-4.5 h-4.5" />
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${card.themeClass.iconContainer}`}>
+                <Icon className="w-4 h-4" />
               </div>
             </div>
             

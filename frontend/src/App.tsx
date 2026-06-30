@@ -387,7 +387,7 @@ export default function App() {
 
       case "map":
         return (
-          <div className="p-1 flex flex-col h-full">
+          <div className="h-full flex flex-col">
             <LiveMapConsole 
               vessels={displayVessels} 
               alerts={displayAlerts}
@@ -476,23 +476,36 @@ export default function App() {
         activeAlertsCount={alerts.filter(a => a.status !== "Resolved").length}
       />
 
-      {/* Main Core Window Content */}
-      <div className="flex-1 flex flex-col overflow-hidden relative">
-        <Header 
-          title={currentTab.toUpperCase()} 
-          subtitle={getHeaderSubtext()} 
-          activeAlerts={displayAlerts}
-          onSelectAlert={handleSelectAlert}
-          setCurrentTab={setCurrentTab}
-          mode={mode}
-          onModeChange={setMode}
-        />
-
-        {/* Content Viewer */}
-        <main className="flex-1 overflow-y-auto p-8" style={{ background: "radial-gradient(ellipse at top, rgba(3,17,34,0.3) 0%, #010811 70%)" }}>
-          {renderActiveView()}
+      {currentTab === "map" ? (
+        <main className="flex-1 overflow-hidden">
+          <LiveMapConsole 
+            vessels={displayVessels} 
+            alerts={displayAlerts}
+            weather={weather}
+            mode={mode}
+            selectedVessel={selectedVessel}
+            onSelectVessel={handleSelectVessel}
+            setCurrentTab={setCurrentTab}
+          />
         </main>
-      </div>
+      ) : (
+        <div className="flex-1 flex flex-col overflow-hidden relative">
+          <Header 
+            title={currentTab.toUpperCase()} 
+            subtitle={getHeaderSubtext()} 
+            activeAlerts={displayAlerts}
+            onSelectAlert={handleSelectAlert}
+            setCurrentTab={setCurrentTab}
+            mode={mode}
+            onModeChange={setMode}
+          />
+
+          {/* Content Viewer */}
+          <main className="flex-1 overflow-y-auto p-8" style={{ background: "radial-gradient(ellipse at top, rgba(3,17,34,0.3) 0%, #010811 70%)" }}>
+            {renderActiveView()}
+          </main>
+        </div>
+      )}
     </div>
   );
 }

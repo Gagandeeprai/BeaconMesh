@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export type VesselType = "Cargo" | "Fishing" | "Tanker" | "Navy" | "Support" | "Distress" | "Passenger" | "Tug" | "BaseStation";
+export type VesselType = "Cargo" | "Fishing" | "Tanker" | "Navy" | "Support" | "Distress" | "Passenger" | "Tug" | "Research" | "Military" | "BaseStation";
 export type VesselStatus = "Distress" | "Active" | "Support" | "Completed" | "Offline" | "LiveAIS";
 
 export interface Vessel {
@@ -19,6 +19,19 @@ export interface Vessel {
   cargo?: string;
   destination?: string;
   isLiveAIS?: boolean;
+  media?: {
+    photoUrl?: string;
+    source?: string;
+    lastUpdated?: string;
+    verified?: boolean;
+  };
+}
+
+export interface VesselMedia {
+  photoUrl: string;
+  source?: string;
+  lastUpdated?: string;
+  verified: true;
 }
 
 export type AlertType = "Engine Failure" | "Medical Emergency" | "Mechanical Issue" | "Fire Hazard" | "Capsized" | "Grounding";

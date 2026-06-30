@@ -376,7 +376,7 @@ export default function MapOverview({
       {/* Map Header with Filters */}
       <div className="p-6 bg-[#031122] border-b border-[#0d2238] flex flex-wrap items-center justify-between gap-3.5 z-[1000]">
         <div className="flex items-center gap-3">
-          <Compass className="w-4.5 h-4.5 text-[#00e5ff]" />
+          <Compass className="w-4 h-4 text-[#00e5ff]" />
           <h3 className="text-sm font-bold text-slate-100 font-sans tracking-wide">
             Live Maritime Overview
           </h3>
@@ -496,7 +496,7 @@ export default function MapOverview({
 
       {/* Tooltip Hover Overlay (Top-Left corner) */}
       {selectedVessel && (
-        <div className="absolute top-32 left-6 bg-[#031122]/95 border border-[#0d2238] rounded-2xl p-4 shadow-xl max-w-sm font-sans backdrop-blur-xs z-[500] pointer-events-auto">
+        <div className="absolute top-32 left-6 bg-[#031122]/95 border border-[#0d2238] rounded-2xl p-4 shadow-xl max-w-sm font-sans backdrop-blur-sm z-[500] pointer-events-auto">
           <div className="flex items-start justify-between gap-4 mb-2.5">
             <div>
               <h4 className="text-xs font-bold text-slate-200">{selectedVessel.name}</h4>

@@ -5,13 +5,14 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { 
-  Compass, Search, Eye, Filter, Info, ShieldAlert, 
+  Compass, Search, Eye, Filter, Info, ShieldAlert, Bell,
   Layers, Anchor, Activity, Wind, EyeOff, Radio, RefreshCw,
   ZoomIn, ZoomOut, AlertTriangle, CloudRain, ShieldCheck, Ship,
   Maximize2, X, Star, Globe, ChevronDown, ChevronUp, Play, Pause
 } from "lucide-react";
 import maplibregl from "maplibre-gl";
 import { Vessel, Alert, WeatherCondition } from "../types";
+import { resolveVerifiedVesselMedia } from "../media/vesselMedia";
 
 interface LiveMapConsoleProps {
   vessels: Vessel[];
@@ -96,8 +97,8 @@ export default function LiveMapConsole({
     fishing: true,
     research: true,
     military: true,
-    anchored: true,
-    underway: true
+    anchored: false,
+    underway: false
   });
   const [speedLimit, setSpeedLimit] = useState<number>(0);
   const [lengthLimit, setLengthLimit] = useState<number>(0);
@@ -117,7 +118,6 @@ export default function LiveMapConsole({
     weather: true,
     wind: true,
     waves: true,
-    cyclones: true,
     bathymetry: true,
     coastlines: true
   });
@@ -319,8 +319,8 @@ export default function LiveMapConsole({
     if (v.type === "Military" && !filters.military) return false;
 
     const isMoving = v.speed > 0.5;
-    if (filters.anchored && isMoving) return false;
-    if (filters.underway && !isMoving) return false;
+    if (filters.anchored && !filters.underway && isMoving) return false;
+    if (filters.underway && !filters.anchored && !isMoving) return false;
 
     if (v.speed < speedLimit) return false;
 
@@ -491,41 +491,6 @@ export default function LiveMapConsole({
         }
       });
 
-      // Cyclone warning polygons
-      map.addSource("geojson-cyclones", {
-        type: "geojson",
-        data: {
-          type: "FeatureCollection",
-          features: [
-            {
-              type: "Feature",
-              geometry: {
-                type: "Polygon",
-                coordinates: [[
-                  [64.0, 11.0],
-                  [73.0, 11.0],
-                  [73.0, 18.0],
-                  [64.0, 18.0],
-                  [64.0, 11.0]
-                ]]
-              },
-              properties: { name: "CYCLONE TRACKING CORRIDOR" }
-            }
-          ]
-        }
-      });
-
-      map.addLayer({
-        id: "cyclone-layer",
-        type: "fill",
-        source: "geojson-cyclones",
-        paint: {
-          "fill-color": "#ef4444",
-          "fill-opacity": 0.08,
-          "fill-outline-color": "#ef4444"
-        }
-      });
-
       map.on("mousemove", (e) => {
         setHoverCoords([e.lngLat.lat, e.lngLat.lng]);
       });
@@ -534,7 +499,7 @@ export default function LiveMapConsole({
         const features = map.queryRenderedFeatures(e.point, { layers: ["clusters"] });
         const clusterId = features[0].properties.cluster_id;
         const source = map.getSource("geojson-vessels") as maplibregl.GeoJSONSource;
-        source.getClusterExpansionZoom(clusterId, (err, zoom) => {
+        source.getClusterExpansionZoom(clusterId).then((zoom) => {
           map.easeTo({
             center: (features[0].geometry as any).coordinates,
             zoom: zoom || 5
@@ -579,7 +544,6 @@ export default function LiveMapConsole({
     toggleLayer("clusters", layers.vesselTraffic);
     toggleLayer("cluster-count", layers.vesselTraffic);
     toggleLayer("ports-layer", layers.majorPorts);
-    toggleLayer("cyclone-layer", layers.cyclones);
   }, [layers]);
 
   // Feed filtered vessels list
@@ -631,6 +595,7 @@ export default function LiveMapConsole({
   };
 
   const selectedDetails = selectedVessel ? getVesselDetails(selectedVessel) : null;
+  const selectedMedia = resolveVerifiedVesselMedia(selectedVessel);
 
   // Stats calculation
   const totalTracked = filteredList.length;
@@ -641,56 +606,84 @@ export default function LiveMapConsole({
   const fishCount = filteredList.filter(v => v.type === "Fishing").length;
 
   return (
-    <div id="situational-radar-center" className="flex flex-col h-[calc(100vh-100px)] border border-[#0d2238] rounded-2xl overflow-hidden bg-[#010811] relative select-none">
+    <div id="situational-radar-center" className="flex flex-col h-full min-h-0 bg-[#010811] relative select-none">
       
       {/* Console Subheader */}
-      <div className="bg-[#031122] border-b border-[#0d2238] px-6 py-3 flex items-center justify-between z-30">
-        <div className="flex items-center gap-3">
-          <Activity className="w-4.5 h-4.5 text-[#00e5ff] animate-pulse" />
-          <div>
-            <h3 className="text-xs font-bold text-slate-100 font-sans tracking-wider uppercase">Global Maritime Traffic Monitoring Center</h3>
-            <p className="text-[9.5px] text-slate-400 font-mono mt-0.5">High-Fidelity Virtualized WebGL Radar Feed • Mode: {mode.toUpperCase()}</p>
-          </div>
+      <div className="bg-[#031122] border-b border-[#0d2238] px-5 py-3.5 flex items-center justify-between gap-4 z-30">
+        <div className="min-w-0">
+          <h3 className="text-xs font-bold text-slate-100 font-sans tracking-wider uppercase">
+            Global Maritime Traffic Monitoring Center
+          </h3>
+          <p className="text-[9.5px] text-slate-400 font-mono mt-0.5">
+            High-Fidelity Virtualized WebGL Radar Feed • Mode: <span className="text-emerald-400">LIVE</span>
+          </p>
         </div>
 
-        {/* Global Search Bar (Centered layout style) */}
-        <div className="relative">
-          <input
-            type="text"
-            placeholder="Search Ship Name, MMSI, IMO, Call Sign, Destination..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="bg-[#051120] border border-[#0d2238] text-[10.5px] text-slate-200 placeholder-slate-500 rounded-lg pl-8 pr-3 py-1.5 w-80 focus:outline-none focus:border-[#00e5ff] font-mono"
-          />
-          <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
-          {searchQuery && (
-            <div className="absolute top-9 left-0 right-0 bg-[#031122] border border-[#0d2238] rounded-lg max-h-48 overflow-y-auto z-[2000] text-[10px] font-mono shadow-2xl">
-              {combinedList
-                .filter(v => v.name.toLowerCase().includes(searchQuery.toLowerCase()) || v.id.toLowerCase().includes(searchQuery.toLowerCase()))
-                .slice(0, 10)
-                .map(v => (
-                  <button
-                    key={v.id}
-                    onClick={() => handleVesselSearchSelect(v)}
-                    className="w-full text-left px-3 py-2 hover:bg-[#07172a] text-slate-300 hover:text-[#00e5ff] border-b border-[#0d2238]/40"
-                  >
-                    {v.name} ({v.type})
-                  </button>
-                ))
-              }
-            </div>
-          )}
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search Ship Name, MMSI, IMO, Call Sign..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="bg-[#051120] border border-[#0d2238] text-[10.5px] text-slate-200 placeholder-slate-500 rounded-xl pl-9 pr-4 py-2 w-[320px] focus:outline-none focus:border-[#00e5ff] font-mono"
+            />
+            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-2.5" />
+            {searchQuery && (
+              <div className="absolute top-10 left-0 right-0 bg-[#031122] border border-[#0d2238] rounded-xl max-h-48 overflow-y-auto z-[2000] text-[10px] font-mono shadow-2xl">
+                {combinedList
+                  .filter(v => v.name.toLowerCase().includes(searchQuery.toLowerCase()) || v.id.toLowerCase().includes(searchQuery.toLowerCase()))
+                  .slice(0, 10)
+                  .map(v => (
+                    <button
+                      key={v.id}
+                      onClick={() => handleVesselSearchSelect(v)}
+                      className="w-full text-left px-3 py-2 hover:bg-[#07172a] text-slate-300 hover:text-[#00e5ff] border-b border-[#0d2238]/40"
+                    >
+                      {v.name} ({v.type})
+                    </button>
+                  ))
+                }
+              </div>
+            )}
+          </div>
+
+          <button className="relative p-2.5 rounded-xl bg-[#051120] border border-[#0d2238] text-slate-400 hover:text-slate-200 hover:bg-[#07172a] transition-colors cursor-pointer">
+            <Bell className="w-4 h-4" />
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold h-4 w-4 flex items-center justify-center rounded-full shadow-[0_0_8px_rgba(239,68,68,0.5)]">
+              3
+            </span>
+          </button>
+          <button className="p-2.5 rounded-xl bg-[#051120] border border-[#0d2238] text-slate-400 hover:text-slate-200 hover:bg-[#07172a] transition-colors cursor-pointer">
+            <Filter className="w-4 h-4" />
+          </button>
+          <button className="p-2.5 rounded-xl bg-[#051120] border border-[#0d2238] text-slate-400 hover:text-slate-200 hover:bg-[#07172a] transition-colors cursor-pointer">
+            <Globe className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="relative flex-1 min-h-0 overflow-hidden">
         {/* LEFT FILTER DOCK (Accordion style matching screenshot) */}
-        <aside className="w-64 bg-[#020a14] border-r border-[#0d2238]/60 p-4 overflow-y-auto flex flex-col gap-4.5 z-20">
+        <aside className="absolute top-6 left-6 bottom-36 w-72 bg-[#020a14]/95 border border-[#0d2238]/60 rounded-2xl p-4 overflow-hidden flex flex-col gap-3 z-20 shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur-md">
           
           {/* Funnel Header */}
-          <div className="flex items-center justify-between text-[10px] font-bold text-slate-300 font-mono tracking-wider uppercase border-b border-[#0d2238] pb-2 mb-1">
+          <div className="flex items-center justify-between text-[10px] font-bold text-slate-300 font-mono tracking-wider uppercase border-b border-[#0d2238] pb-2">
             <span className="flex items-center gap-1.5"><Filter className="w-3.5 h-3.5 text-[#00e5ff]" /> Traffic Filters</span>
           </div>
+
+          <div className="grid grid-cols-2 gap-2 font-mono">
+            <div className="rounded-lg border border-[#0d2238]/70 bg-[#031122]/65 px-3 py-2">
+              <span className="block text-[7.5px] uppercase tracking-wider text-slate-500">Visible Targets</span>
+              <strong className="mt-0.5 block text-sm font-bold text-slate-100">{totalTracked}</strong>
+            </div>
+            <div className="rounded-lg border border-[#0d2238]/70 bg-[#031122]/65 px-3 py-2">
+              <span className="block text-[7.5px] uppercase tracking-wider text-slate-500">Mode</span>
+              <strong className="mt-0.5 block text-sm font-bold uppercase text-emerald-400">{mode}</strong>
+            </div>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1 space-y-3">
 
           {/* 1. SHIP TYPES (Accordion) */}
           <div className="border border-[#0d2238]/50 rounded-xl overflow-hidden bg-[#031122]/30">
@@ -775,28 +768,6 @@ export default function LiveMapConsole({
                   <span>Military Vessels</span>
                 </label>
 
-                <div className="border-t border-[#0d2238]/40 pt-2 mt-2 space-y-1.5">
-                  <label className="flex items-center gap-2.5 cursor-pointer hover:text-slate-200">
-                    <input
-                      type="checkbox"
-                      checked={filters.anchored}
-                      onChange={() => setFilters(prev => ({ ...prev, anchored: !prev.anchored }))}
-                      className="rounded border-[#0d2238] bg-[#051120] text-cyan-400 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
-                    />
-                    <span className="inline-block w-2 h-2 rounded-full bg-cyan-400/80 mr-1.5" />
-                    <span>Anchored</span>
-                  </label>
-                  <label className="flex items-center gap-2.5 cursor-pointer hover:text-slate-200">
-                    <input
-                      type="checkbox"
-                      checked={filters.underway}
-                      onChange={() => setFilters(prev => ({ ...prev, underway: !prev.underway }))}
-                      className="rounded border-[#0d2238] bg-[#051120] text-[#22c55e] focus:ring-0 w-3.5 h-3.5 cursor-pointer"
-                    />
-                    <span className="inline-block w-2 h-2 rounded-full bg-[#22c55e]/80 mr-1.5" />
-                    <span>Underway</span>
-                  </label>
-                </div>
               </div>
             )}
           </div>
@@ -887,23 +858,51 @@ export default function LiveMapConsole({
               {expandedSections.status ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </button>
             {expandedSections.status && (
-              <div className="p-2">
+              <div className="p-3 space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFilters(prev => ({ ...prev, underway: !prev.underway }))}
+                    className={`rounded-lg border px-2.5 py-2 text-left font-mono transition-colors ${
+                      filters.underway
+                        ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-300"
+                        : "border-[#0d2238] bg-[#051120] text-slate-500 hover:text-slate-300"
+                    }`}
+                  >
+                    <span className="block text-[8px] uppercase tracking-wider">Underway</span>
+                    <span className="mt-1 block h-1 rounded-full bg-emerald-400/70" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFilters(prev => ({ ...prev, anchored: !prev.anchored }))}
+                    className={`rounded-lg border px-2.5 py-2 text-left font-mono transition-colors ${
+                      filters.anchored
+                        ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-300"
+                        : "border-[#0d2238] bg-[#051120] text-slate-500 hover:text-slate-300"
+                    }`}
+                  >
+                    <span className="block text-[8px] uppercase tracking-wider">Anchored</span>
+                    <span className="mt-1 block h-1 rounded-full bg-cyan-400/70" />
+                  </button>
+                </div>
                 <input
                   type="text"
                   placeholder="e.g. Underway"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full bg-[#051120] border border-[#0d2238] rounded px-2 py-1 text-[10px] text-slate-200 placeholder-slate-600 focus:outline-none focus:border-[#00e5ff] font-mono"
+                  className="w-full bg-[#051120] border border-[#0d2238] rounded-lg px-2.5 py-2 text-[10px] text-slate-200 placeholder-slate-600 focus:outline-none focus:border-[#00e5ff] font-mono"
                 />
               </div>
             )}
           </div>
 
+          </div>
+
           {/* Quick Action Side Panel (Bottom Pinned) */}
-          <div className="mt-auto pt-4 border-t border-[#0d2238]/60 space-y-2">
+          <div className="pt-3 border-t border-[#0d2238]/60 space-y-2">
             <div className="text-[8px] font-mono text-slate-500 uppercase tracking-widest block mb-1">Quick Action</div>
             <button
-              onClick={() => setCurrentTab("alerts")}
+              onClick={() => setCurrentTab?.("alerts")}
               className="w-full py-1.5 bg-[#ef4444]/10 hover:bg-[#ef4444]/20 border border-red-500/20 hover:border-red-500/40 text-red-400 font-bold rounded-lg text-[9px] font-mono transition-all cursor-pointer flex items-center justify-center gap-1.5"
             >
               <AlertTriangle className="w-3.5 h-3.5 animate-pulse" /> Broadcast SOS
@@ -939,8 +938,8 @@ export default function LiveMapConsole({
         </aside>
 
         {/* CENTER: Fullscreen Map Container */}
-        <div className="flex-1 relative h-full">
-          <div ref={mapContainerRef} className="w-full h-full" />
+        <div className="absolute inset-0">
+          <div ref={mapContainerRef} className="absolute inset-0 w-full h-full" />
 
           {/* Floating layers menu overlay */}
           {showLayers && (
@@ -1002,7 +1001,7 @@ export default function LiveMapConsole({
         </div>
 
         {/* RIGHT PANEL: Vessel specifications & Port details (Drawer style matching screenshot) */}
-        <aside className="w-80 bg-[#020a14] border-l border-[#0d2238]/60 p-5 overflow-y-auto flex flex-col gap-5 z-20 text-slate-300">
+        <aside className="absolute top-6 right-6 bottom-20 w-80 bg-[#020a14]/95 border border-[#0d2238]/60 rounded-2xl p-5 overflow-y-auto flex flex-col gap-5 z-20 text-slate-300 shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur-md">
           
           {/* Selected Port Display */}
           {selectedPort ? (
@@ -1053,22 +1052,48 @@ export default function LiveMapConsole({
                 </button>
               </div>
 
-              <div className="bg-[#031122] border border-[#0d2238] p-4 rounded-xl space-y-2 relative">
-                {/* Photo (High Fidelity Container Ship SVG drawing exactly matching screenshot) */}
-                <div className="w-full h-24 rounded-lg bg-[#051120] border border-[#0d2238] overflow-hidden flex flex-col items-center justify-center relative">
-                  <svg width="200" height="96" viewBox="0 0 200 96" className="w-full h-full opacity-90">
-                    <rect width="200" height="96" fill="#030f1d" />
-                    <rect y="64" width="200" height="32" fill="#001833" />
-                    <polygon points="30,68 170,68 160,50 40,50" fill="#1b1c1e" />
-                    <rect x="40" y="44" width="120" height="6" fill="#22c55e" />
-                    <rect x="48" y="32" width="104" height="12" fill="#0284c7" />
-                    <rect x="60" y="24" width="80" height="8" fill="#10b981" />
-                    <rect x="144" y="16" width="12" height="16" fill="#f3f4f6" />
-                    <line x1="0" y1="64" x2="200" y2="64" stroke="#00e5ff" stroke-width="1" opacity="0.3" />
-                  </svg>
+              <div className="bg-[#031122] border border-[#0d2238] p-4 rounded-xl space-y-3 relative">
+                <div className="w-full aspect-[16/9] rounded-lg bg-[#051120] border border-[#0d2238] overflow-hidden relative">
+                  {selectedMedia ? (
+                    <>
+                      <img
+                        src={selectedMedia.photoUrl}
+                        alt={`Verified vessel media for ${selectedDetails.name}`}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#020a14]/95 to-transparent" />
+                      <div className="absolute left-2.5 right-2.5 bottom-2 flex items-end justify-between gap-3">
+                        <span className="rounded border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider text-emerald-300">
+                          Verified Photo
+                        </span>
+                        <div className="min-w-0 text-right font-mono text-[8px] text-slate-400">
+                          {selectedMedia.source && <div className="truncate">Source: {selectedMedia.source}</div>}
+                          {selectedMedia.lastUpdated && <div className="truncate">Updated: {selectedMedia.lastUpdated}</div>}
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex h-full flex-col items-center justify-center gap-3 p-5 text-center">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-[#0d2238] bg-[#020a14]">
+                        <Ship className="h-6 w-6 text-slate-500" />
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-200">
+                          No Verified Vessel Photo
+                        </div>
+                        <div className="mt-1 text-[9px] font-mono leading-relaxed text-slate-500">
+                          {selectedVessel?.isLiveAIS
+                            ? "No verified media is available from the active provider."
+                            : "BeaconMesh simulation environment"}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
-                <div className="flex items-start justify-between mt-2">
+                <div className="flex items-start justify-between">
                   <div>
                     <h3 className="text-sm font-extrabold text-slate-100 font-sans tracking-wide flex items-center gap-1.5">
                       {selectedDetails.name} <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 cursor-pointer" />
@@ -1165,11 +1190,14 @@ export default function LiveMapConsole({
         </aside>
       </div>
 
-      {/* BOTTOM METRICS STATUS BAR (Perfect replication of screenshot) */}
-      <div className="bg-[#031122] border-t border-[#0d2238] px-6 py-3 flex flex-wrap items-center justify-between text-[10px] font-mono text-slate-400 z-30 shadow-2xl">
+      {/* BOTTOM METRICS STATUS BAR */}
+      <div className="absolute left-6 right-6 bottom-14 bg-[#031122]/95 border border-[#0d2238] px-6 py-3 rounded-xl flex flex-wrap items-center justify-between text-[10px] font-mono text-slate-400 z-30 shadow-2xl backdrop-blur-md">
         <div className="flex items-center gap-6 flex-wrap">
-          {/* ships online */}
-          <div className="flex items-center border-r border-[#0d2238] pr-6">
+         <div className="pr-6 border-r border-[#0d2238]">
+           <div className="text-[8.5px] font-bold uppercase tracking-wider text-slate-500">v2.3.0 | System Online</div>
+         </div>
+         {/* ships online */}
+         <div className="flex items-center border-r border-[#0d2238] pr-6">
             <div>
               <span className="text-slate-500 text-[8.5px] font-bold block uppercase tracking-wider">SHIPS ONLINE</span>
               <strong className="text-slate-100 text-sm block mt-0.5 font-sans tracking-tight">12,847</strong>
@@ -1252,30 +1280,13 @@ export default function LiveMapConsole({
             </div>
           </div>
         </div>
-      </div>
 
-      {/* FOOTER-MOST BAR WITH FEED CONNECTIVITY STATUSES */}
-      <footer className="bg-[#020a14] border-t border-[#0d2238]/60 px-6 py-2 flex flex-wrap items-center justify-between text-[9px] font-mono text-slate-500">
-        <div>
-          <span>v2.3.0</span>
-          <span className="mx-2.5">|</span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
-            </span>
-            System Online
-          </span>
-        </div>
-
-        <div className="flex items-center gap-4.5">
+        <div className="flex items-center gap-4 border-l border-[#0d2238] pl-6">
           <span>AIS FEED: <strong className="text-[#22c55e]">LIVE</strong></span>
           <span>WEATHER FEED: <strong className="text-[#22c55e]">LIVE</strong></span>
           <span>LAST UPDATE: {currentTime} UTC</span>
-          <span>TIME (UTC): {currentTime}</span>
         </div>
 
-        {/* Timeline controls */}
         <div className="flex items-center gap-1.5 bg-[#031122]/60 p-0.5 rounded border border-[#0d2238]/40">
           <button className="px-1.5 py-0.5 rounded text-[8px] hover:bg-[#07172a] hover:text-slate-300 cursor-pointer">6H</button>
           <button onClick={() => setPlayLive(!playLive)} className="p-1 rounded hover:bg-[#07172a] hover:text-slate-300 cursor-pointer">
@@ -1284,7 +1295,7 @@ export default function LiveMapConsole({
           <button className="px-2 py-0.5 rounded text-[8px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold uppercase cursor-pointer">LIVE</button>
           <button className="px-1.5 py-0.5 rounded text-[8px] hover:bg-[#07172a] hover:text-slate-300 cursor-pointer">1X</button>
         </div>
-      </footer>
+      </div>
 
     </div>
   );

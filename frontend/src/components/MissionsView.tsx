@@ -129,7 +129,7 @@ export default function MissionsView({
                 {activeMission.logs.map((log, index) => (
                   <div key={index} className="relative group">
                     {/* Ring dot */}
-                    <span className="absolute -left-[30px] top-1 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-[#031122] border border-[#00e5ff]">
+                    <span className="absolute -left-[30px] top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#031122] border border-[#00e5ff]">
                       <span className="h-1.5 w-1.5 rounded-full bg-[#00e5ff]"></span>
                     </span>
                     

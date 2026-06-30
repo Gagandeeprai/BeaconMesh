@@ -50,12 +50,12 @@ export default function RecentAlertsPanel({
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="border-b border-[#0d2238] text-[10px] text-slate-500 uppercase tracking-wider font-mono bg-[#020912]/50">
-              <th className="px-6 py-4.5">Time</th>
-              <th className="px-6 py-4.5">Vessel ID</th>
-              <th className="px-6 py-4.5">Type</th>
-              <th className="px-6 py-4.5">Location</th>
-              <th className="px-6 py-4.5">Status</th>
-              <th className="px-6 py-4.5 text-right">Inspect</th>
+              <th className="px-6 py-4">Time</th>
+              <th className="px-6 py-4">Vessel ID</th>
+              <th className="px-6 py-4">Type</th>
+              <th className="px-6 py-4">Location</th>
+              <th className="px-6 py-4">Status</th>
+              <th className="px-6 py-4 text-right">Inspect</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#0d2238]/60 text-xs text-slate-300 font-sans">
