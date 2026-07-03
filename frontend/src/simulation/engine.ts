@@ -4,6 +4,8 @@ import { computeDTNLinks, Link } from "./dtn";
 import { tickMissions } from "./mission";
 import { eventBus } from "./eventBus";
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8080";
+
 export class SimulationEngine {
   public vessels: Vessel[] = [];
   public alerts: Alert[] = [];
@@ -143,7 +145,7 @@ export class SimulationEngine {
     let optimizationResult: any = null;
 
     try {
-      const res = await fetch("http://localhost:8080/api/v1/optimize/rescue", {
+      const res = await fetch(`${API_BASE}/api/v1/optimize/rescue`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)

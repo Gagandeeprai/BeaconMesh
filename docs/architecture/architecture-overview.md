@@ -6,7 +6,7 @@ This document serves as the canonical architecture definition for **BeaconMesh**
 
 ## ⚠️ Architectural Reality & Discrepancies
 
-To maintain absolute technical integrity, developers and auditors must note that the active codebase differs from older legacy design documentation (`docs/hld.md`, `docs/lld.md`, `docs/prd.md`). Below is the truth-matrix comparing the **Legacy Design Specs** to the **Actual Implementation** as verified in the repository:
+To maintain absolute technical integrity, developers and auditors must note that the active codebase differs from older legacy design documentation (archived in `docs/archive/`). Below is the truth-matrix comparing the **Legacy Design Specs** (originally in `docs/hld.md`, `docs/lld.md`, `docs/prd.md`) to the **Actual Implementation** as verified in the repository:
 
 | Architectural Area | Legacy Design Spec (Outdated) | Actual Implementation (Source of Truth) |
 | :--- | :--- | :--- |
@@ -239,7 +239,7 @@ The current persistence model is transient and runs in-memory:
 
 ### Planned Persistent Architecture (PostGIS Integration)
 The planned production architecture will use a persistent database layout:
-- **Spatial Tables**: Uses PostgreSQL + PostGIS schemas mapped in `docs/database_design.md` (`vessels`, `telemetry_logs`, `emergencies`, `rescue_routes`).
+- **Spatial Tables**: Uses PostgreSQL + PostGIS schemas mapped in `docs/archive/database_design.md` (`vessels`, `telemetry_logs`, `emergencies`, `rescue_routes`).
 - **GIST Indexing**: Implements Generalized Search Trees (GIST) on spatial fields to optimize geometric queries (e.g. `ST_DWithin` for LoRa transceiver range checks).
 
 ---

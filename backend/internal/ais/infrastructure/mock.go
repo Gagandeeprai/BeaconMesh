@@ -6,35 +6,20 @@ import (
 	"math/rand"
 	"sync"
 	"time"
+
+	"github.com/beaconmesh/backend/internal/ais/domain"
 )
 
-type AISVessel struct {
-	ID          string  `json:"id"`
-	Name        string  `json:"name"`
-	Type        string  `json:"type"` // Cargo, Tanker, Passenger, Tug
-	Latitude    float64 `json:"latitude"`
-	Longitude   float64 `json:"longitude"`
-	Speed       float64 `json:"speed"` // knots
-	Heading     float64 `json:"heading"` // degrees
-	People      int     `json:"peopleOnboard"`
-	Cargo       string  `json:"cargo"`
-	Destination string  `json:"destination"`
-	IsLiveAIS   bool    `json:"isLiveAIS"`
-}
-
-type AISProvider interface {
-	FetchVessels(ctx context.Context) ([]AISVessel, error)
-}
-
-type MockAISProvider struct {
+type MockProvider struct {
 	mu      sync.Mutex
-	vessels []AISVessel
+	vessels []domain.Vessel
 	lastUpd time.Time
 }
 
-func NewMockAISProvider() *MockAISProvider {
-	p := &MockAISProvider{
-		vessels: []AISVessel{
+func NewMockProvider() *MockProvider {
+	now := time.Now()
+	return &MockProvider{
+		vessels: []domain.Vessel{
 			{
 				ID:          "AIS-CARGO-9102",
 				Name:        "Symphony of the Seas",
@@ -47,6 +32,7 @@ func NewMockAISProvider() *MockAISProvider {
 				Cargo:       "None (Cruise Ship)",
 				Destination: "Mangalore Port",
 				IsLiveAIS:   true,
+				Source:      "mock",
 			},
 			{
 				ID:          "AIS-TANK-5612",
@@ -60,6 +46,7 @@ func NewMockAISProvider() *MockAISProvider {
 				Cargo:       "LNG (32,000 Tons)",
 				Destination: "Dahej Port",
 				IsLiveAIS:   true,
+				Source:      "mock",
 			},
 			{
 				ID:          "AIS-TUG-1002",
@@ -73,6 +60,7 @@ func NewMockAISProvider() *MockAISProvider {
 				Cargo:       "Rescue & Towing Equipment",
 				Destination: "Mangalore Anchorage",
 				IsLiveAIS:   true,
+				Source:      "mock",
 			},
 			{
 				ID:          "AIS-CARGO-4411",
@@ -86,27 +74,27 @@ func NewMockAISProvider() *MockAISProvider {
 				Cargo:       "General Merchandise",
 				Destination: "Colombo Port",
 				IsLiveAIS:   true,
+				Source:      "mock",
 			},
 		},
-		lastUpd: time.Now(),
+		lastUpd: now,
 	}
-	return p
 }
 
-func (m *MockAISProvider) FetchVessels(ctx context.Context) ([]AISVessel, error) {
+func (m *MockProvider) Name() string {
+	return "mock"
+}
+
+func (m *MockProvider) FetchVessels(ctx context.Context) ([]domain.Vessel, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	now := time.Now()
-	elapsed := now.Sub(m.lastUpd).Seconds()
-	m.lastUpd = now
+	elapsed := time.Since(m.lastUpd).Seconds()
+	m.lastUpd = time.Now()
 
-	// Update coordinates based on speed and heading to make them feel "live"
 	for i := range m.vessels {
 		v := &m.vessels[i]
-		// Calculate movement: speed in knots to degrees/sec
-		// 1 knot = 1.852 km/h = 0.514 m/s
-		// 1 degree of lat = 111,000 meters
+
 		speedMps := v.Speed * 0.514444
 		distMoved := speedMps * elapsed
 
@@ -120,18 +108,14 @@ func (m *MockAISProvider) FetchVessels(ctx context.Context) ([]AISVessel, error)
 		v.Latitude += latChange
 		v.Longitude += lonChange
 
-		// Keep heading with small random wander
 		v.Heading = math.Mod(v.Heading+float64(rand.Intn(11)-5)+360.0, 360.0)
 
-		// Boundaries to keep them within the Mangalore map sector (around lat 12.5-13.5, lon 73.5-74.8)
 		if v.Latitude < 12.4 || v.Latitude > 13.6 || v.Longitude < 73.4 || v.Longitude > 74.9 {
-			// Reverse heading
 			v.Heading = math.Mod(v.Heading+180.0, 360.0)
 		}
 	}
 
-	// Copy and return
-	result := make([]AISVessel, len(m.vessels))
+	result := make([]domain.Vessel, len(m.vessels))
 	copy(result, m.vessels)
 	return result, nil
 }

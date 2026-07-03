@@ -2,6 +2,7 @@ package infrastructure
 
 import (
 	"context"
+	"log"
 	"sync"
 	"time"
 
@@ -51,6 +52,9 @@ func (c *WeatherCache) FetchWeatherReport(ctx context.Context, lat, lon float64)
 		c.isFetching = true
 		go func() {
 			defer func() {
+				if rec := recover(); rec != nil {
+					log.Printf("[WeatherCache] panic in background revalidation: %v", rec)
+				}
 				c.mu.Lock()
 				c.isFetching = false
 				c.mu.Unlock()

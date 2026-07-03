@@ -5,9 +5,9 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/beaconmesh/backend/internal/weather/application"
-	"github.com/beaconmesh/backend/internal/weather/infrastructure"
 )
 
 type WeatherHandler struct {
@@ -22,11 +22,9 @@ func NewWeatherHandler(service *application.WeatherService) *WeatherHandler {
 
 // GetWeather handles the HTTP requests for current weather and marine advisory reports
 func (h *WeatherHandler) GetWeather(w http.ResponseWriter, r *http.Request) {
-	// Default coordinates for Mangalore
 	lat := 12.9141
 	lon := 74.8560
 
-	// Allow overriding via query parameters
 	if latStr := r.URL.Query().Get("latitude"); latStr != "" {
 		if parsedLat, err := strconv.ParseFloat(latStr, 64); err == nil {
 			lat = parsedLat
@@ -53,42 +51,36 @@ func (h *WeatherHandler) GetWeather(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(report)
 }
 
-type AISHandler struct {
-	provider infrastructure.AISProvider
-}
-
-func NewAISHandler(provider infrastructure.AISProvider) *AISHandler {
-	return &AISHandler{provider: provider}
-}
-
-func (h *AISHandler) GetAISVessels(w http.ResponseWriter, r *http.Request) {
-	vessels, err := h.provider.FetchVessels(r.Context())
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"error": err.Error(),
-		})
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(vessels)
-}
-
 type RescueHandler struct {
 	pythonSolverURL string
+	client          *http.Client
 }
 
 func NewRescueHandler(pythonSolverURL string) *RescueHandler {
 	return &RescueHandler{
 		pythonSolverURL: pythonSolverURL,
+		client: &http.Client{
+			Timeout: 30 * time.Second,
+		},
 	}
 }
 
 func (h *RescueHandler) OptimizeRescue(w http.ResponseWriter, r *http.Request) {
-	resp, err := http.Post(h.pythonSolverURL, "application/json", r.Body)
+	// Limit request body to 1 MB
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, h.pythonSolverURL, r.Body)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"error": "Failed to create request to optimization solver",
+		})
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := h.client.Do(req)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadGateway)

@@ -1,6 +1,7 @@
 package event
 
 import (
+	"log"
 	"sync"
 )
 
@@ -32,8 +33,16 @@ func (b *EventBus) Publish(eventName string, data interface{}) {
 		return
 	}
 
-	// Trigger each handler in its own goroutine to avoid blocking the publisher
+	// Trigger each handler in its own goroutine to avoid blocking the publisher.
+	// Each goroutine recovers panics so a single subscriber cannot crash the process.
 	for _, h := range handlers {
-		go h(data)
+		go func(handler Handler) {
+			defer func() {
+				if rec := recover(); rec != nil {
+					log.Printf("[EventBus] panic in handler for %q: %v", eventName, rec)
+				}
+			}()
+			handler(data)
+		}(h)
 	}
 }

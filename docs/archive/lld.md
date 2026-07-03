@@ -1,3 +1,13 @@
+> **⚠️ ARCHIVED — Historical Document**
+>
+> This document is retained for historical reference only. It describes the **original conceptual design** of BeaconMesh and does **not reflect the current implementation**.
+>
+> For the current architecture, see **[docs/architecture/architecture-overview.md](../architecture/architecture-overview.md)** — the canonical source of truth.
+>
+> *Archived: July 2026*
+
+---
+
 # Low-Level Design (LLD)
 
 ## 1. Go Backend Package Layout (Clean Architecture & DDD Lite)

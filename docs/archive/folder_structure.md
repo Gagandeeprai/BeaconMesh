@@ -1,3 +1,13 @@
+> **⚠️ ARCHIVED — Historical Document**
+>
+> This document is retained for historical reference only. It describes the **original conceptual design** of BeaconMesh and does **not reflect the current implementation**.
+>
+> For the current architecture, see **[docs/architecture/architecture-overview.md](../architecture/architecture-overview.md)** — the canonical source of truth.
+>
+> *Archived: July 2026*
+
+---
+
 # Folder Structure Spec
 
 The BeaconMesh repository utilizes a multi-language monorepo structure. This layout isolates frontend, backend, simulation, infrastructure, and documentation clean boundaries.

@@ -172,11 +172,16 @@ BeaconMesh/
 │
 ├── docs/                        # Architecture documentation
 │   ├── adr/                     # Architecture Decision Records
-│   ├── hld.md                   # High-Level Design
-│   ├── lld.md                   # Low-Level Design
-│   ├── prd.md                   # Product Requirements
-│   ├── api_specification.md
-│   └── database_design.md
+│   ├── architecture/            # Canonical architecture overview
+│   │   └── architecture-overview.md
+│   └── archive/                 # Archived historical design documents
+│       ├── prd.md               # Archived — original Product Requirements
+│       ├── hld.md               # Archived — original High-Level Design
+│       ├── lld.md               # Archived — original Low-Level Design
+│       ├── api_specification.md # Archived — original API Specification
+│       ├── database_design.md   # Archived — original Database Design
+│       ├── folder_structure.md  # Archived — original Folder Structure
+│       └── development_roadmap.md # Archived — original Development Roadmap
 │
 ├── requirements.txt             # Top-level Python deps
 └── .gitignore
