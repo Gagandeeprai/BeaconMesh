@@ -12,6 +12,7 @@ import (
 	aisDomain "github.com/beaconmesh/backend/internal/ais/domain"
 	aisInfra "github.com/beaconmesh/backend/internal/ais/infrastructure"
 	aisHttp "github.com/beaconmesh/backend/internal/ais/interfaces"
+	"github.com/beaconmesh/backend/internal/emergency"
 	"github.com/beaconmesh/backend/internal/shared/event"
 	weatherApp "github.com/beaconmesh/backend/internal/weather/application"
 	"github.com/beaconmesh/backend/internal/weather/domain"
@@ -103,6 +104,8 @@ func main() {
 	mux.HandleFunc("GET /api/v1/ais", aisHandler.GetAISVessels)
 	mux.HandleFunc("GET /api/v1/health", aisHandler.GetHealth)
 	mux.HandleFunc("POST /api/v1/optimize/rescue", rescueHandler.OptimizeRescue)
+	mux.HandleFunc("POST /api/v1/emergency", emergency.TriggerEmergency)
+	mux.HandleFunc("GET /api/v1/emergency/pending", emergency.GetPendingEmergencies)
 
 	// Recovery middleware — catches panics in HTTP handlers
 	recoveryMux := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -464,6 +464,54 @@ export default function LiveMapConsole({
         }
       });
 
+      // Vessel name labels layer (hidden by default, toggled via Layers panel)
+      map.addLayer({
+        id: "vessel-labels",
+        type: "symbol",
+        source: "geojson-vessels",
+        filter: ["!", ["has", "point_count"]],
+        layout: {
+          "text-field": ["get", "name"],
+          "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+          "text-size": 9,
+          "text-offset": [0, 1.4],
+          "text-anchor": "top",
+          "text-allow-overlap": false,
+          "text-ignore-placement": false,
+          "visibility": "none"
+        },
+        paint: {
+          "text-color": "#94a3b8",
+          "text-halo-color": "#020a14",
+          "text-halo-width": 1.5
+        }
+      });
+
+      // Vessel trails layer (hidden by default, toggled via Layers panel)
+      map.addSource("geojson-trails", {
+        type: "geojson",
+        data: {
+          type: "FeatureCollection",
+          features: []
+        }
+      });
+
+      map.addLayer({
+        id: "vessel-trails",
+        type: "line",
+        source: "geojson-trails",
+        layout: {
+          "line-join": "round",
+          "line-cap": "round",
+          "visibility": "none"
+        },
+        paint: {
+          "line-color": "#00e5ff",
+          "line-width": 1.5,
+          "line-opacity": 0.45
+        }
+      });
+
       map.addSource("geojson-ports", {
         type: "geojson",
         data: {
@@ -544,6 +592,8 @@ export default function LiveMapConsole({
     toggleLayer("clusters", layers.vesselTraffic);
     toggleLayer("cluster-count", layers.vesselTraffic);
     toggleLayer("ports-layer", layers.majorPorts);
+    toggleLayer("vessel-labels", layers.vesselLabels);
+    toggleLayer("vessel-trails", layers.vesselTrails);
   }, [layers]);
 
   // Feed filtered vessels list
@@ -574,6 +624,38 @@ export default function LiveMapConsole({
 
     source.setData(geojson);
   }, [filteredList]);
+
+  // Feed trails list to MapLibre source
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+
+    const source = map.getSource("geojson-trails") as maplibregl.GeoJSONSource;
+    if (!source) return;
+
+    const features: GeoJSON.Feature[] = [];
+    filteredList.forEach(v => {
+      const trail = trails[v.id];
+      if (trail && trail.length > 1) {
+        features.push({
+          type: "Feature",
+          geometry: {
+            type: "LineString",
+            coordinates: trail.map(coord => [coord[1], coord[0]]) // MapLibre expects [longitude, latitude]
+          },
+          properties: {
+            id: v.id,
+            type: v.type
+          }
+        });
+      }
+    });
+
+    source.setData({
+      type: "FeatureCollection",
+      features
+    });
+  }, [filteredList, trails]);
 
   // Search selector helper
   const handleVesselSearchSelect = (v: Vessel) => {

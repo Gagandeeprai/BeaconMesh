@@ -1,6 +1,6 @@
-import { Vessel, Alert, Mission, WeatherCondition } from "../types";
+import { Vessel, Alert, Mission, WeatherCondition, NetworkTrace } from "../types";
 import { updatePosition } from "./movement";
-import { computeDTNLinks, Link } from "./dtn";
+import { computeDTNLinks, computePropagationPath, Link } from "./dtn";
 import { tickMissions } from "./mission";
 import { eventBus } from "./eventBus";
 
@@ -11,6 +11,7 @@ export class SimulationEngine {
   public alerts: Alert[] = [];
   public missions: Mission[] = [];
   public links: Link[] = [];
+  public networkTraces: NetworkTrace[] = [];
   
   private lastTickTime: number = Date.now();
   private sosSpawnTimer: number = 0;
@@ -44,7 +45,10 @@ export class SimulationEngine {
     const simVessels = this.vessels.filter(v => !v.isLiveAIS);
     this.links = computeDTNLinks(simVessels, 15.0);
 
-    // 4. Random SOS Spawner (every ~90 seconds in hybrid/simulation modes)
+    // 4. Animate active network propagation traces
+    this.tickNetworkTraces(dt);
+
+    // 5. Random SOS Spawner (every ~90 seconds in hybrid/simulation modes)
     if (mode === "hybrid" || mode === "simulation") {
       this.sosSpawnTimer += dt;
       if (this.sosSpawnTimer >= 90) {
@@ -108,6 +112,47 @@ export class SimulationEngine {
 
     // Call optimizer
     await this.assignOptimalResponder(newAlert, weather);
+  }
+
+  public triggerNetworkPropagation(vesselId: string) {
+    const vessel = this.vessels.find(v => v.id === vesselId);
+    if (!vessel || vessel.status !== "Distress") return;
+
+    const hops = computePropagationPath(vesselId, this.vessels, 15.0);
+    if (hops.length === 0) return;
+
+    const trace: NetworkTrace = {
+      id: `trace-${vesselId}-${Date.now()}`,
+      sourceId: vesselId,
+      sourceName: vessel.name,
+      hops,
+      currentHopIndex: 0,
+      hopProgress: 0,
+      active: true,
+      completed: false,
+    };
+
+    this.networkTraces = [...this.networkTraces.filter(t => !t.active), trace];
+    eventBus.publish("NetworkTraceStarted", trace);
+  }
+
+  private tickNetworkTraces(dt: number) {
+    this.networkTraces = this.networkTraces.map(trace => {
+      if (!trace.active || trace.completed) return trace;
+
+      let newProgress = trace.hopProgress + dt * 0.4;
+      let newIndex = trace.currentHopIndex;
+
+      if (newProgress >= 1) {
+        newProgress = 0;
+        newIndex += 1;
+        if (newIndex >= trace.hops.length) {
+          return { ...trace, active: false, completed: true, currentHopIndex: newIndex, hopProgress: 0 };
+        }
+      }
+
+      return { ...trace, currentHopIndex: newIndex, hopProgress: newProgress };
+    });
   }
 
   private async assignOptimalResponder(alert: Alert, weather?: WeatherCondition) {

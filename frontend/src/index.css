@@ -62,3 +62,192 @@
   border: 1px solid var(--border-color);
   border-radius: 16px;
 }
+
+/* Wind streamline flow animation */
+@keyframes windFlow {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(20px); }
+}
+
+/* Wind particle drift animations */
+@keyframes windDrift0 {
+  0% { transform: translate(0, 0); opacity: 0; }
+  20% { opacity: 0.5; }
+  80% { opacity: 0.5; }
+  100% { transform: translate(40px, 12px); opacity: 0; }
+}
+
+@keyframes windDrift1 {
+  0% { transform: translate(0, 0); opacity: 0; }
+  20% { opacity: 0.4; }
+  80% { opacity: 0.4; }
+  100% { transform: translate(35px, -8px); opacity: 0; }
+}
+
+@keyframes windDrift2 {
+  0% { transform: translate(0, 0); opacity: 0; }
+  20% { opacity: 0.45; }
+  80% { opacity: 0.45; }
+  100% { transform: translate(50px, 5px); opacity: 0; }
+}
+
+/* === Leaflet MarkerCluster — Dark Maritime Theme === */
+.marker-cluster-small,
+.marker-cluster-medium,
+.marker-cluster-large {
+  background: rgba(0, 229, 255, 0.12);
+  border: 1.5px solid rgba(0, 229, 255, 0.3);
+  border-radius: 50%;
+}
+
+.marker-cluster-small div,
+.marker-cluster-medium div,
+.marker-cluster-large div {
+  background: rgba(2, 10, 20, 0.88);
+  border: 1px solid rgba(0, 229, 255, 0.25);
+  color: #94a3b8;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  font-weight: 600;
+  width: 28px;
+  height: 28px;
+  margin-left: 6px;
+  margin-top: 6px;
+  text-align: center;
+  border-radius: 50%;
+  line-height: 28px;
+}
+
+.marker-cluster-medium div {
+  width: 32px;
+  height: 32px;
+  margin-left: 4px;
+  margin-top: 4px;
+  line-height: 32px;
+  font-size: 11px;
+}
+
+.marker-cluster-large div {
+  width: 36px;
+  height: 36px;
+  margin-left: 2px;
+  margin-top: 2px;
+  line-height: 36px;
+  font-size: 12px;
+  color: #e2e8f0;
+}
+
+/* === Compact Vessel Hover Tooltip === */
+.leaflet-tooltip.vessel-tooltip {
+  background: rgba(2, 10, 20, 0.92);
+  border: 1px solid #0d2238;
+  border-radius: 6px;
+  color: #cbd5e1;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9.5px;
+  padding: 4px 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.leaflet-tooltip.vessel-tooltip::before {
+  border-top-color: #0d2238;
+}
+
+/* === Compact Selected Vessel Chip (on-map) === */
+.vessel-selected-chip {
+  background: rgba(2, 10, 20, 0.94);
+  border: 1px solid rgba(0, 229, 255, 0.35);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9.5px;
+  color: #e2e8f0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+  pointer-events: auto;
+  max-width: 200px;
+}
+
+.vessel-selected-chip .chip-name {
+  font-weight: 700;
+  font-size: 11px;
+  color: #f1f5f9;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.vessel-selected-chip .chip-status {
+  font-size: 9px;
+  color: #94a3b8;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.vessel-selected-chip .chip-status.distress {
+  color: #fca5a5;
+}
+
+.vessel-selected-chip .chip-status.support {
+  color: #6ee7b7;
+}
+
+.vessel-selected-chip .chip-link {
+  font-size: 8.5px;
+  color: #00e5ff;
+  text-decoration: none;
+  cursor: pointer;
+  opacity: 0.8;
+  transition: opacity 0.15s;
+}
+
+.vessel-selected-chip .chip-link:hover {
+  opacity: 1;
+}
+
+/* === Gateway / HQ Dark Chip Tooltip === */
+.leaflet-tooltip.gateway-tooltip {
+  background: rgba(2, 10, 20, 0.92);
+  border: 1px solid #0d2238;
+  border-radius: 6px;
+  color: #64748b;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 3px 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  letter-spacing: 0.03em;
+}
+
+.leaflet-tooltip.gateway-tooltip::before {
+  border-top-color: #0d2238;
+}
+
+.leaflet-tooltip.gateway-tooltip-hq {
+  color: #67e8f9;
+  border-color: rgba(0, 229, 255, 0.2);
+}
+
+.leaflet-tooltip.gateway-tooltip-hq::before {
+  border-top-color: rgba(0, 229, 255, 0.2);
+}
+
+/* === SOS Pulse Ring Animation === */
+@keyframes sosPulseRing {
+  0% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.6); opacity: 0.15; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+@keyframes sosBeacon {
+  0%, 100% { box-shadow: 0 0 4px #ef4444, 0 0 8px rgba(239, 68, 68, 0.4); }
+  50% { box-shadow: 0 0 12px #ef4444, 0 0 24px rgba(239, 68, 68, 0.6); }
+}
+
+/* === Leaflet override: remove default blue icon shadows === */
+.leaflet-marker-icon.vessel-marker-clustered {
+  background: transparent !important;
+  border: none !important;
+}
+

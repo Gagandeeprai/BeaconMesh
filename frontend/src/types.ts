@@ -55,6 +55,25 @@ export interface Alert {
   description: string;
 }
 
+export interface TraceHop {
+  fromId: string;
+  toId: string;
+  fromCoords: [number, number];
+  toCoords: [number, number];
+  vesselName: string;
+}
+
+export interface NetworkTrace {
+  id: string;
+  sourceId: string;
+  sourceName: string;
+  hops: TraceHop[];
+  currentHopIndex: number;
+  hopProgress: number;
+  active: boolean;
+  completed: boolean;
+}
+
 export type MissionStatus = "Dispatched" | "On Scene" | "Completed" | "Suspended";
 
 export interface Mission {

@@ -1,4 +1,4 @@
-import { Vessel } from "../types";
+import { Vessel, TraceHop } from "../types";
 
 export interface Link {
   fromId: string;
@@ -29,6 +29,42 @@ export function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: nu
       Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
+}
+
+export function computePropagationPath(
+  sourceId: string,
+  vessels: Vessel[],
+  rangeKm: number = 15.0
+): TraceHop[] {
+  const source = vessels.find(v => v.id === sourceId);
+  if (!source) return [];
+
+  const visited = new Set<string>([sourceId]);
+  const queue: Vessel[] = [source];
+  const hops: TraceHop[] = [];
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    const neighbors = vessels.filter(v =>
+      !visited.has(v.id) &&
+      v.status !== "Offline" &&
+      getDistanceKm(current.latitude, current.longitude, v.latitude, v.longitude) <= rangeKm
+    );
+
+    for (const neighbor of neighbors) {
+      visited.add(neighbor.id);
+      hops.push({
+        fromId: current.id,
+        toId: neighbor.id,
+        fromCoords: [current.latitude, current.longitude],
+        toCoords: [neighbor.latitude, neighbor.longitude],
+        vesselName: neighbor.name,
+      });
+      queue.push(neighbor);
+    }
+  }
+
+  return hops;
 }
 
 export function computeDTNLinks(vessels: Vessel[], rangeKm: number = 15.0): Link[] {

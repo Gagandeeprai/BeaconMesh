@@ -20,7 +20,7 @@ import AnalyticsView from "./components/AnalyticsView";
 import ReportsView from "./components/ReportsView";
 import SettingsView from "./components/SettingsView";
 
-import { Vessel, Alert, Mission, WeatherCondition } from "./types";
+import { Vessel, Alert, Mission, WeatherCondition, NetworkTrace } from "./types";
 import {
   INITIAL_VESSELS,
   INITIAL_ALERTS,
@@ -44,6 +44,8 @@ export default function App() {
   const [alerts, setAlerts] = useState<Alert[]>(engine.alerts);
   const [missions, setMissions] = useState<Mission[]>(engine.missions);
   const [liveAISVessels, setLiveAISVessels] = useState<Vessel[]>([]);
+
+  const [networkTraces, setNetworkTraces] = useState<NetworkTrace[]>([]);
 
   // Selection Tracking
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(
@@ -99,6 +101,7 @@ export default function App() {
       setVessels([...engine.vessels]);
       setAlerts([...engine.alerts]);
       setMissions([...engine.missions]);
+      setNetworkTraces([...engine.networkTraces]);
     }, 1000);
     return () => clearInterval(interval);
   }, [weather, mode, engine]);
@@ -140,6 +143,32 @@ export default function App() {
     const interval = setInterval(fetchAIS, 30000);
     return () => clearInterval(interval);
   }, [mode]);
+
+  // 5-second poll for backend-triggered emergencies
+  useEffect(() => {
+    const pollEmergencies = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/emergency/pending`);
+        if (!res.ok) return;
+        const pending: Array<{ vessel_id: string; type: string; description: string }> = await res.json();
+        for (const p of pending) {
+          const vessel = engine.vessels.find(v => v.id === p.vessel_id);
+          if (vessel && vessel.status !== "Distress") {
+            engine.triggerSOS(p.vessel_id, p.type, p.description, weather);
+          }
+        }
+        if (pending.length > 0) {
+          setVessels([...engine.vessels]);
+          setAlerts([...engine.alerts]);
+          setMissions([...engine.missions]);
+        }
+      } catch {
+        // backend offline
+      }
+    };
+    const interval = setInterval(pollEmergencies, 5000);
+    return () => clearInterval(interval);
+  }, [engine, weather]);
 
   // 10-minute Weather live fetcher
   useEffect(() => {
@@ -186,6 +215,14 @@ export default function App() {
 
       setAlerts([...engine.alerts]);
       setVessels([...engine.vessels]);
+    });
+    return sub;
+  }, [engine]);
+
+  // Sync network traces started inside engine
+  useEffect(() => {
+    const sub = eventBus.subscribe("NetworkTraceStarted", () => {
+      setNetworkTraces([...engine.networkTraces]);
     });
     return sub;
   }, [engine]);
@@ -239,6 +276,12 @@ export default function App() {
       );
     }
     setCurrentTab("dashboard");
+  };
+
+  // State Mutator: Trigger network propagation trace from an emergency node
+  const handleNetworkPropagation = (vesselId: string) => {
+    engine.triggerNetworkPropagation(vesselId);
+    setNetworkTraces([...engine.networkTraces]);
   };
 
   // State Mutator: Assign Responder vessel to a distress target
@@ -417,6 +460,8 @@ export default function App() {
                 alerts={displayAlerts}
                 selectedVessel={selectedVessel}
                 onSelectVessel={handleSelectVessel}
+                networkTraces={networkTraces}
+                onTriggerPropagation={handleNetworkPropagation}
               />
               <SummaryCards
                 alerts={displayAlerts}
