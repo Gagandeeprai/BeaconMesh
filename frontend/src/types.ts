@@ -25,6 +25,9 @@ export interface Vessel {
     lastUpdated?: string;
     verified?: boolean;
   };
+  threatScore?: number;
+  threatIndicators?: string[];
+  activeViolations?: string[];
 }
 
 export interface VesselMedia {

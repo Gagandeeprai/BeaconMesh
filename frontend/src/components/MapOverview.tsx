@@ -10,6 +10,8 @@ import "leaflet.markercluster";
 import { Vessel, Alert, NetworkTrace } from "../types";
 import { getDistanceKm, computeDTNLinks } from "../simulation/dtn";
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8080";
+
 // ─── Layer Configuration ─────────────────────────────────────
 interface LayerConfig {
   vesselLabels: boolean;
@@ -114,9 +116,27 @@ export default function MapOverview({
   const traceGroupRef = useRef<L.LayerGroup | null>(null);
   const selectedPopupRef = useRef<L.Popup | null>(null);
 
+  const [zones, setZones] = useState<any[]>([]);
+
+  // Fetch pre-defined geofence zones from Go backend processing engine
+  useEffect(() => {
+    const fetchZones = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/zones`);
+        if (res.ok) {
+          const data = await res.json();
+          setZones(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch zones in MapOverview:", err);
+      }
+    };
+    fetchZones();
+  }, []);
+
   // ─── Filter Vessels ──────────────────────────────────────────
   const filteredVessels = vessels.filter((vessel) => {
-    if (filterType === "Distress Only" && vessel.status !== "Distress") return false;
+    if (filterType === "Violating Only" && vessel.status !== "Distress") return false;
     if (filterType === "Support Only" && vessel.status !== "Support") return false;
     if (filterType === "Cargo & Tankers" && vessel.type !== "Cargo" && vessel.type !== "Tanker") return false;
     if (filterType === "Fishing Craft" && vessel.type !== "Fishing") return false;
@@ -222,9 +242,9 @@ export default function MapOverview({
     const mapInstance = L.map(mapContainerRef.current, {
       zoomControl: false,
       attributionControl: false,
-      center: [12.9141, 74.35],
-      zoom: 9,
-      minZoom: 7,
+      center: [12.9141, 78.0],
+      zoom: 4,
+      minZoom: 2,
       maxZoom: 14,
     });
 
@@ -294,31 +314,41 @@ export default function MapOverview({
       selectedPopupRef.current = null;
     }
 
-    // ═══ A. ADVISORY ZONE (subtle geofence) ═══
+    // ═══ A. GEOFENCE ZONES ═══
     if (layers.advisories) {
-      const activeSOS = vessels.some(v => v.status === "Distress");
-      const advColor = activeSOS ? "#ef4444" : "#10b981";
-
-      L.polygon(
-        [
-          [12.45, 73.40],
-          [13.55, 73.40],
-          [13.55, 74.83],
-          [12.45, 74.83]
-        ],
-        {
-          color: advColor,
-          fillColor: advColor,
-          fillOpacity: activeSOS ? 0.04 : 0.015,
-          weight: 0.5,
-          dashArray: "4, 8",
-          opacity: 0.4,
+      zones.forEach((z) => {
+        const coords = z.boundary.map((c: any) => [c.latitude, c.longitude]);
+        let color = "#ef4444"; // red for military/restricted
+        let fillOpacity = 0.1;
+        if (z.type === "fishing-ban") {
+          color = "#eab308"; // yellow/orange for fishing ban
+        } else if (z.type === "port-channel") {
+          color = "#3b82f6"; // blue for port channel approach
+        } else if (z.type === "eez-india") {
+          color = "#22c55e"; // green
+          fillOpacity = 0.05;
+        } else if (z.type === "eez-srilanka") {
+          color = "#64748b"; // grey
+          fillOpacity = 0.05;
+        } else if (z.type === "eez-maldives") {
+          color = "#ec4899"; // pink
+          fillOpacity = 0.05;
         }
-      ).addTo(overlayGroup)
-        .bindTooltip(
-          activeSOS ? "⚠ RESTRICTED OPERATIONS: SOS IN PROGRESS" : "✅ ADVISORY: NORMAL OPERATION STATUS",
-          { sticky: true, className: "vessel-tooltip" }
-        );
+
+        L.polygon(coords, {
+          color: color,
+          fillColor: color,
+          fillOpacity: fillOpacity,
+          weight: 1.2,
+          dashArray: z.type === "military-restricted" ? "4, 4" : "",
+          opacity: 0.6,
+        })
+          .addTo(overlayGroup)
+          .bindTooltip(`<strong>${z.name}</strong><br/>${z.description}`, {
+            sticky: true,
+            className: "vessel-tooltip"
+          });
+      });
     }
 
     // ═══ B. WIND VECTORS (simplified — arrows only, no particles) ═══
@@ -518,7 +548,7 @@ export default function MapOverview({
       // Show compact selected vessel popup (chip)
       if (selectedVessel?.id === v.id) {
         const statusClass = v.status === "Distress" ? "distress" : v.status === "Support" ? "support" : "";
-        const statusLabel = v.status === "Distress" ? "⚠ Distress" : v.status === "Support" ? "◉ Support" : v.status;
+        const statusLabel = v.status === "Distress" ? "⚠ Violation" : v.status === "Support" ? "◉ Support" : v.status;
 
         const popupContent = `
           <div class="vessel-selected-chip">
@@ -542,7 +572,7 @@ export default function MapOverview({
       }
     });
 
-  }, [vessels, alerts, selectedVessel, filterType, searchQuery, layers, currentZoom, buildVesselIcon, getVesselTier, onSelectVessel, onTriggerPropagation]);
+  }, [vessels, alerts, selectedVessel, filterType, searchQuery, layers, currentZoom, buildVesselIcon, getVesselTier, onSelectVessel, onTriggerPropagation, zones]);
 
   // ─── 3. Network Trace Animation (own useEffect — fires each tick without full map redraw) ───
   useEffect(() => {
@@ -650,7 +680,7 @@ export default function MapOverview({
             className="bg-[#051120] border border-[#0d2238] text-[11px] text-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#00e5ff] font-sans font-semibold cursor-pointer"
           >
             <option>All Vessels</option>
-            <option>Distress Only</option>
+            <option>Violating Only</option>
             <option>Support Only</option>
             <option>Cargo &amp; Tankers</option>
             <option>Fishing Craft</option>

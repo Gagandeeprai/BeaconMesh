@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -76,6 +77,17 @@ func RateLimit(next http.Handler) http.Handler {
 // into the request context. Returns 401 on missing/invalid token.
 func JWTAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Allow bypassing JWT Auth in local review/dev mode if DISABLE_AUTH is explicitly set to "true"
+		if os.Getenv("DISABLE_AUTH") == "true" {
+			claims := &Claims{
+				UserID: "dev_admin",
+				Role:   "Administrator",
+			}
+			ctx := context.WithValue(r.Context(), ClaimsKey, claims)
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+
 		authHeader := r.Header.Get("Authorization")
 		if !strings.HasPrefix(authHeader, "Bearer ") {
 			w.Header().Set("Content-Type", "application/json")

@@ -88,5 +88,55 @@ func GetPredefinedZones() []Zone {
 				{Latitude: 13.05, Longitude: 74.65},
 			},
 		},
+		{
+			ID:          "ZONE-EEZ-IND",
+			Name:        "Indian Exclusive Economic Zone (EEZ)",
+			Type:        "eez-india",
+			Description: "India sovereign maritime jurisdiction (200 nautical miles).",
+			Boundary: []Coordinate{
+				{Latitude: 22.47, Longitude: 69.07}, // Okha (Gujarat)
+				{Latitude: 22.0, Longitude: 68.0},   // North-West Arabian Sea (EEZ line)
+				{Latitude: 18.9, Longitude: 68.5},   // West of Mumbai
+				{Latitude: 12.0, Longitude: 70.5},   // West of Lakshadweep
+				{Latitude: 7.0, Longitude: 71.5},    // South of Lakshadweep
+				{Latitude: 6.5, Longitude: 77.0},    // South of Kanyakumari
+				{Latitude: 8.08, Longitude: 77.54},  // Kanyakumari Shoreline
+				{Latitude: 9.98, Longitude: 76.22},  // Cochin Shoreline
+				{Latitude: 11.25, Longitude: 75.77}, // Calicut Shoreline
+				{Latitude: 12.91, Longitude: 74.85}, // Mangalore Shoreline
+				{Latitude: 14.80, Longitude: 74.13}, // Karwar Shoreline
+				{Latitude: 15.49, Longitude: 73.81}, // Goa Shoreline
+				{Latitude: 18.96, Longitude: 72.82}, // Mumbai Shoreline
+				{Latitude: 21.64, Longitude: 69.60}, // Porbandar Shoreline
+			},
+		},
+		{
+			ID:          "ZONE-EEZ-LKA",
+			Name:        "Sri Lanka Exclusive Economic Zone (EEZ)",
+			Type:        "eez-srilanka",
+			Description: "Sri Lankan maritime jurisdiction.",
+			Boundary: []Coordinate{
+				{Latitude: 10.0, Longitude: 79.5}, // North
+				{Latitude: 8.5, Longitude: 82.5},  // East
+				{Latitude: 5.5, Longitude: 82.0},  // South-East
+				{Latitude: 4.5, Longitude: 80.5},  // South
+				{Latitude: 6.0, Longitude: 78.5},  // South-West
+				{Latitude: 8.0, Longitude: 78.8},  // West
+			},
+		},
+		{
+			ID:          "ZONE-EEZ-MDV",
+			Name:        "Maldives Exclusive Economic Zone (EEZ)",
+			Type:        "eez-maldives",
+			Description: "Maldivian sovereign maritime jurisdiction.",
+			Boundary: []Coordinate{
+				{Latitude: 8.0, Longitude: 71.0},  // North-West
+				{Latitude: 8.0, Longitude: 74.5},  // North-East
+				{Latitude: 2.0, Longitude: 75.0},  // Central-East
+				{Latitude: -1.0, Longitude: 74.5}, // South-East
+				{Latitude: -1.0, Longitude: 71.0}, // South-West
+				{Latitude: 2.0, Longitude: 70.5},  // Central-West
+			},
+		},
 	}
 }

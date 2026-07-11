@@ -229,7 +229,7 @@ export default function MissionsView({
             <Radio className="w-12 h-12 text-slate-600 mb-3 animate-ping" />
             <h3 className="text-slate-300 font-bold text-sm">No Missions Logged</h3>
             <p className="text-xs text-slate-500 mt-2 max-w-xs leading-relaxed font-sans">
-              Deploy a responder to any distress alert in the Active Alerts panel to automatically register a Search and Rescue mission tracker.
+              Deploy a responder to any encroachment or violation alert in the Active Alerts panel to automatically register an intercept mission tracker.
             </p>
           </div>
         )}

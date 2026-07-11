@@ -209,6 +209,9 @@ func main() {
 	mux.Handle("GET /api/v1/zones",
 		gateway.HandlerFunc(processingHandler.GetZones, gateway.JWTAuth, gateway.RequireRole("Operator")))
 
+	mux.Handle("GET /api/v1/processing/threats",
+		gateway.HandlerFunc(processingHandler.GetThreats, gateway.JWTAuth, gateway.RequireRole("Operator")))
+
 	mux.Handle("POST /api/v1/telemetry",
 		gateway.HandlerFunc(processingHandler.IngestTelemetry, gateway.JWTAuth, gateway.RequireRole("Operator")))
 

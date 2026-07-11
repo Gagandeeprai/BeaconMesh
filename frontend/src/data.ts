@@ -10,10 +10,10 @@ export const INITIAL_VESSELS: Vessel[] = [
     id: "IND-KA-07-1234",
     name: "Sea Breeze",
     type: "Fishing",
-    status: "Distress",
+    status: "Active",
     latitude: 13.2075, // Corresponds to 13° 12.45' N
-    longitude: 74.7553, // Corresponds to 74° 45.32' E
-    speed: 0,
+    longitude: 74.6553, // Corresponds to 74° 39.32' E
+    speed: 8,
     heading: 145,
     peopleOnboard: 7,
     cargo: "Trawled Mackerel (2.4 Tons)",
@@ -23,10 +23,10 @@ export const INITIAL_VESSELS: Vessel[] = [
     id: "IND-KA-05-5678",
     name: "Maersk Devotion",
     type: "Tanker",
-    status: "Distress",
+    status: "Active",
     latitude: 13.0187, // Corresponds to 13° 01.12' N
     longitude: 74.3352, // Corresponds to 74° 20.11' E
-    speed: 4,
+    speed: 12,
     heading: 310,
     peopleOnboard: 22,
     cargo: "Crude Oil (45,000 Tons)",
@@ -285,7 +285,7 @@ export const INITIAL_VESSELS: Vessel[] = [
     type: "Tug",
     status: "Active",
     latitude: 12.9100,
-    longitude: 74.8100,
+    longitude: 74.7500,
     speed: 4,
     heading: 0,
     peopleOnboard: 3,
@@ -330,98 +330,90 @@ export const INITIAL_VESSELS: Vessel[] = [
     peopleOnboard: 4,
     cargo: "None (Private Leisure Yacht)",
     destination: "Goa Marina"
-  }
-];
-
-export const INITIAL_ALERTS: Alert[] = [
-  {
-    id: "IND-KA-07-1234",
-    vesselId: "IND-KA-07-1234",
-    vesselName: "Sea Breeze",
-    type: "Engine Failure",
-    time: "12:43 PM",
-    location: "13° 12.45' N, 74° 45.32' E",
-    latitude: 13.2075,
-    longitude: 74.7553,
-    status: "In Progress",
-    severity: "High",
-    peopleOnboard: 7,
-    responder: "CGS Samudra Paheredar",
-    etaMin: 25,
-    description: "Vessel reporting complete failure of its primary diesel engine and secondary generator. Heavy black smoke from the exhaust prior to cut-off. Currently drifting northeast towards rocky reef under moderate swell. Anchor has failed to catch bed. Urgent propulsion assistance or towing required."
   },
   {
-    id: "IND-KA-05-5678",
-    vesselId: "IND-KA-05-5678",
-    vesselName: "Maersk Devotion",
-    type: "Medical Emergency",
-    time: "11:28 AM",
-    location: "13° 01.12' N, 74° 20.11' E",
-    latitude: 13.0187,
-    longitude: 74.3352,
-    status: "Acknowledged",
-    severity: "High",
-    peopleOnboard: 22,
-    responder: "CGS Kavaratti",
-    etaMin: 42,
-    description: "Second mate suffered a severe crushing injury to his right leg during deck crane operations. Uncontrolled arterial bleeding has been temporarily bound with a tourniquet, but the patient is showing signs of critical hemorrhagic shock, cold extremities, and declining consciousness. Ship doctor requesting immediate medevac."
+    id: "AIS-CARGO-GP01",
+    name: "Singa Pioneer",
+    type: "Cargo",
+    status: "Active",
+    latitude: 1.22,
+    longitude: 103.88,
+    speed: 12.5,
+    heading: 90,
+    peopleOnboard: 24,
+    cargo: "Containers",
+    destination: "Port of Singapore"
   },
   {
-    id: "IND-KA-08-9101",
-    vesselId: "IND-KA-08-9101",
-    vesselName: "Sagar Samrat",
-    type: "Mechanical Issue",
-    time: "09:15 AM",
-    location: "12° 45.00' N, 73° 52.20' E",
-    latitude: 12.7500,
-    longitude: 73.8700,
-    status: "Resolved",
-    severity: "Medium",
+    id: "AIS-TANK-GP02",
+    name: "Merlion Ocean",
+    type: "Tanker",
+    status: "Active",
+    latitude: 1.18,
+    longitude: 103.78,
+    speed: 10.0,
+    heading: 270,
+    peopleOnboard: 28,
+    cargo: "Crude Oil",
+    destination: "Port of Singapore"
+  },
+  {
+    id: "AIS-CARGO-GP03",
+    name: "Yangtze Fortune",
+    type: "Cargo",
+    status: "Active",
+    latitude: 31.25,
+    longitude: 121.75,
+    speed: 15.2,
+    heading: 110,
+    peopleOnboard: 20,
+    cargo: "Electronics",
+    destination: "Port of Shanghai"
+  },
+  {
+    id: "AIS-CARGO-GP04",
+    name: "Euro Carrier",
+    type: "Cargo",
+    status: "Active",
+    latitude: 51.98,
+    longitude: 4.22,
+    speed: 14.0,
+    heading: 240,
     peopleOnboard: 18,
-    responder: "N/A",
-    etaMin: 0,
-    description: "Experienced a high-temperature alarm on cylinder 4 of the auxiliary generator. Power fluctuated for 10 minutes. Crew successfully bypassed the auxiliary line and engaged the emergency generator pack. Maintenance completed and temperature stabilized at normal parameters. No propulsion loss experienced."
+    cargo: "Machinery",
+    destination: "Port of Rotterdam"
+  },
+  {
+    id: "AIS-CARGO-GP05",
+    name: "Pacific Sovereign",
+    type: "Cargo",
+    status: "Active",
+    latitude: 33.68,
+    longitude: -118.35,
+    speed: 16.5,
+    heading: 150,
+    peopleOnboard: 22,
+    cargo: "General Cargo",
+    destination: "Port of Los Angeles"
+  },
+  {
+    id: "AIS-CARGO-GP06",
+    name: "Gateway Voyager",
+    type: "Cargo",
+    status: "Active",
+    latitude: 18.90,
+    longitude: 72.78,
+    speed: 13.0,
+    heading: 260,
+    peopleOnboard: 16,
+    cargo: "Steel Billets",
+    destination: "Mumbai Port"
   }
 ];
 
-export const INITIAL_MISSIONS: Mission[] = [
-  {
-    id: "MSN-2026-0043",
-    alertId: "IND-KA-07-1234",
-    vesselId: "IND-KA-07-1234",
-    vesselName: "Sea Breeze",
-    type: "Towing & Salvage",
-    status: "Dispatched",
-    responder: "CGS Samudra Paheredar",
-    startTime: "12:45 PM",
-    etaMin: 25,
-    peopleOnboard: 7,
-    logs: [
-      { time: "12:43 PM", text: "Distress signal received. SOS activated at Coast Guard Operations Center Mangalore." },
-      { time: "12:45 PM", text: "Mission MSN-2026-0043 chartered. CGS Samudra Paheredar ordered to intercept Sea Breeze." },
-      { time: "12:50 PM", text: "CGS Samudra Paheredar reports underway. Max speed 22 knots, heading 295 degrees." },
-      { time: "01:05 PM", text: "Radio communication established with Sea Breeze captain. Swell reported increasing to 1.8 meters. Crew is wearing life jackets." }
-    ]
-  },
-  {
-    id: "MSN-2026-0042",
-    alertId: "IND-KA-05-5678",
-    vesselId: "IND-KA-05-5678",
-    vesselName: "Maersk Devotion",
-    type: "Medical Evacuation (MEDEVAC)",
-    status: "Dispatched",
-    responder: "CGS Kavaratti",
-    startTime: "11:35 AM",
-    etaMin: 42,
-    peopleOnboard: 22,
-    logs: [
-      { time: "11:28 AM", text: "Medical emergency reported. Crane accident on deck with arterial bleed." },
-      { time: "11:32 AM", text: "Duty doctor brief completed. SAMU/Navy medical team requested to board responder vessel." },
-      { time: "11:35 AM", text: "CGS Kavaratti dispatched with specialized medical kit and Navy surgeon aboard." },
-      { time: "12:10 PM", text: "Telemetry checked. CGS Kavaratti traveling at 26 knots, current ETA in 42 mins." }
-    ]
-  }
-];
+export const INITIAL_ALERTS: Alert[] = [];
+
+export const INITIAL_MISSIONS: Mission[] = [];
 
 export const DEFAULT_WEATHER: WeatherCondition = {
   condition: "Moderate Rain",

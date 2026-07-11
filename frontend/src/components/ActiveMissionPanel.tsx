@@ -36,9 +36,9 @@ export default function ActiveMissionPanel({
     return (
       <div id="active-mission-empty" className="bg-[#020a14] border border-[#0d2238] rounded-2xl p-8 flex flex-col items-center justify-center text-center h-[380px] shadow-[0_4px_30px_rgba(0,0,0,0.3)]">
         <Activity className="w-10 h-10 text-slate-600 animate-pulse mb-4" />
-        <h3 className="text-slate-300 font-bold text-sm">No Active Distress Inspected</h3>
+        <h3 className="text-slate-300 font-bold text-sm">No Active Encroachment Inspected</h3>
         <p className="text-xs text-slate-500 mt-2.5 max-w-xs font-sans leading-relaxed">
-          Select any distress vessel from the Live Map or Recent Alerts table to initiate active incident command monitoring.
+          Select any violating vessel from the Live Map or Recent Alerts table to initiate active incident command monitoring.
         </p>
       </div>
     );
@@ -189,9 +189,9 @@ export default function ActiveMissionPanel({
             <div className="p-3 rounded-full bg-[#00e5ff]/5 border border-[#00e5ff]/20 text-[#00e5ff] mb-3 animate-pulse">
               <Brain className="w-5 h-5" />
             </div>
-            <h5 className="text-[11px] font-bold text-slate-300">AI Tactical Emergency Directives</h5>
+            <h5 className="text-[11px] font-bold text-slate-300">AI Tactical Intercept Directives</h5>
             <p className="text-[10px] text-slate-500 max-w-xs mt-1.5 leading-relaxed font-sans">
-              Deploy Gemini server-side models to analyze distressed cargo, wave vectors, and generate standard operating procedures.
+              Deploy Gemini server-side models to analyze encroachment coordinates, wind/wave vectors, and generate tactical intercept directives.
             </p>
             <button
               id="btn-generate-ai-directives"

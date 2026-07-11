@@ -89,7 +89,7 @@ export default function Header({
           {showNotifications && (
             <div className="absolute right-0 mt-3 w-80 bg-[#041221] border border-[#0e2946] rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] overflow-hidden z-50">
               <div className="px-4 py-3 bg-[#071d33] border-b border-[#0e2946] flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-200">Emergency Dispatches</span>
+                <span className="text-xs font-bold text-slate-200">Encroachment Alerts</span>
                 <span className="text-[10px] bg-red-500/10 text-red-400 px-2 py-0.5 rounded font-mono font-bold">
                   {unreadAlerts.length} Active
                 </span>
@@ -97,7 +97,7 @@ export default function Header({
               <div className="max-h-64 overflow-y-auto divide-y divide-[#081e35]">
                 {unreadAlerts.length === 0 ? (
                   <div className="p-6 text-center text-xs text-slate-500">
-                    No pending emergency alerts.
+                    No pending encroachment alerts.
                   </div>
                 ) : (
                   unreadAlerts.map((alert) => (

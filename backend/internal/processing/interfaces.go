@@ -32,6 +32,14 @@ func (h *Handler) GetAlerts(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(h.alertStore.GetActiveAlerts())
 }
 
+// GetThreats returns a summary of vessels with active threat score calculations.
+func (h *Handler) GetThreats(w http.ResponseWriter, r *http.Request) {
+	vessels := h.engine.GetVesselStates()
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(vessels)
+}
+
 // AcknowledgeAlertRequest defines body payload to acknowledge alert.
 type AcknowledgeAlertRequest struct {
 	ID        string `json:"id"`

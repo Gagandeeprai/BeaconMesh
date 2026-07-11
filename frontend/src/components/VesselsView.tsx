@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -99,6 +99,7 @@ export default function VesselsView({
                   <th className="px-5 py-3">Type</th>
                   <th className="px-5 py-3">Status</th>
                   <th className="px-5 py-3">Speed / Hdg</th>
+                  <th className="px-5 py-3">Threat</th>
                   <th className="px-5 py-3">Position</th>
                 </tr>
               </thead>
@@ -135,11 +136,18 @@ export default function VesselsView({
                       </td>
                       <td className="px-5 py-3.5">
                         <span className={`text-[9px] px-2 py-0.5 font-bold font-mono border rounded uppercase ${statusColor}`}>
-                          {v.status}
+                          {v.status === "Distress" ? "Violating" : v.status}
                         </span>
                       </td>
                       <td className="px-5 py-3.5 font-mono text-slate-300">
                         {v.speed} kn / {v.heading}°
+                      </td>
+                      <td className="px-5 py-3.5">
+                        {(() => {
+                          const ts = v.threatScore ?? 0;
+                          const c = ts >= 70 ? "bg-red-500/10 text-red-400 border-red-500/20" : ts >= 40 ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+                          return <span className={`text-[9px] px-2 py-0.5 font-bold font-mono border rounded ${c}`}>{ts}</span>;
+                        })()}
                       </td>
                       <td className="px-5 py-3.5 font-mono text-slate-400">
                         {v.latitude.toFixed(4)}° N, {v.longitude.toFixed(4)}° E
@@ -175,7 +183,7 @@ export default function VesselsView({
                     ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
                     : "bg-blue-500/10 text-[#00e5ff] border-blue-500/20"
                 }`}>
-                  {selectedVessel.status}
+                  {selectedVessel.status === "Distress" ? "Violating" : selectedVessel.status}
                 </span>
               </div>
 
@@ -198,6 +206,61 @@ export default function VesselsView({
                   <span className="text-slate-300 font-semibold">{selectedVessel.peopleOnboard} Persons</span>
                 </div>
               </div>
+            </div>
+
+            {/* Vessel Intelligence Engine — Threat Assessment */}
+            <div className="border-t border-[#0d2238] pt-4 space-y-3">
+              <h4 className="text-xs font-bold text-[#00e5ff] uppercase tracking-wider font-mono flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                Threat Intelligence
+              </h4>
+
+              {/* Threat Score Bar */}
+              {(() => {
+                const score = selectedVessel.threatScore ?? 0;
+                const barColor = score >= 70 ? "bg-red-500" : score >= 40 ? "bg-amber-500" : "bg-emerald-500";
+                const textColor = score >= 70 ? "text-red-400" : score >= 40 ? "text-amber-400" : "text-emerald-400";
+                const label = score >= 70 ? "HIGH RISK" : score >= 40 ? "ELEVATED" : "LOW";
+                return (
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-[10px] font-mono text-slate-400">
+                      <span>Threat Score</span>
+                      <span className={`font-bold ${textColor}`}>{score}/100 — {label}</span>
+                    </div>
+                    <div className="w-full h-2 bg-[#05162a] rounded-full overflow-hidden border border-[#0d2238]">
+                      <div className={`h-full ${barColor} rounded-full transition-all duration-700`} style={{ width: `${score}%` }} />
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Threat Indicators */}
+              {selectedVessel.threatIndicators && selectedVessel.threatIndicators.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-mono text-slate-500">Active Indicators</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedVessel.threatIndicators.map((ind, i) => (
+                      <span key={i} className="text-[9px] px-2 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 font-mono font-bold">
+                        {ind}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Active Violations */}
+              {selectedVessel.activeViolations && selectedVessel.activeViolations.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-mono text-slate-500">Active Violations</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedVessel.activeViolations.map((v, i) => (
+                      <span key={i} className="text-[9px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono">
+                        {v}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Simulated Live Telemetry Controller */}

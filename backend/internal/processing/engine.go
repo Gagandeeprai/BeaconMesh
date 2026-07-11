@@ -19,16 +19,19 @@ var DefaultLoiteringThreshold = 30 * time.Minute
 
 // VesselState holds the current known location and metadata for a vessel in-memory.
 type VesselState struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Type        string    `json:"type"`
-	Latitude    float64   `json:"latitude"`
-	Longitude   float64   `json:"longitude"`
-	Speed       float64   `json:"speed"`
-	Heading     float64   `json:"heading"`
-	LastUpdated time.Time `json:"lastUpdated"`
-	RiskLevel   string    `json:"riskLevel"`
-	RiskDetails string    `json:"riskDetails"`
+	ID               string    `json:"id"`
+	Name             string    `json:"name"`
+	Type             string    `json:"type"`
+	Latitude         float64   `json:"latitude"`
+	Longitude        float64   `json:"longitude"`
+	Speed            float64   `json:"speed"`
+	Heading          float64   `json:"heading"`
+	LastUpdated      time.Time `json:"lastUpdated"`
+	RiskLevel        string    `json:"riskLevel"`
+	RiskDetails      string    `json:"riskDetails"`
+	ThreatScore      int       `json:"threatScore"`
+	ThreatIndicators []string  `json:"threatIndicators"`
+	ActiveViolations []string  `json:"activeViolations"`
 }
 
 // Engine acts as the central High-Speed Processing Engine state and coordinator.
@@ -100,18 +103,6 @@ func (e *Engine) ProcessUpdateWithHeading(id string, name string, vType string, 
 	// 2. Save vessel state in memory and collect previous state for anomaly detection
 	e.mu.Lock()
 	prevState, hadPrev := e.vesselStates[id]
-	e.vesselStates[id] = VesselState{
-		ID:          id,
-		Name:        name,
-		Type:        vType,
-		Latitude:    lat,
-		Longitude:   lon,
-		Speed:       speed,
-		Heading:     heading,
-		LastUpdated: startTime,
-		RiskLevel:   riskLevel,
-		RiskDetails: riskDetails,
-	}
 
 	// 3. Evaluate geofence rules
 	violations := EvaluateRules(id, name, vType, lat, lon, speed, e.zones, e.entryTimes, e.loiteringThreshold)
@@ -124,6 +115,29 @@ func (e *Engine) ProcessUpdateWithHeading(id string, name string, vType string, 
 		// 5. Check Course Anomaly — detect sudden heading shifts
 		courseViolations := CheckCourseAnomaly(id, name, prevState.Heading, heading, speed)
 		violations = append(violations, courseViolations...)
+	}
+
+	// 5.5 Calculate Threat Score using the Vessel Intelligence Engine
+	var prevPtr *VesselState
+	if hadPrev {
+		prevPtr = &prevState
+	}
+	threatScore, threatIndicators, activeViolations := CalculateThreatScore(id, violations, speed, prevPtr, e.entryTimes)
+
+	e.vesselStates[id] = VesselState{
+		ID:               id,
+		Name:             name,
+		Type:             vType,
+		Latitude:         lat,
+		Longitude:        lon,
+		Speed:            speed,
+		Heading:          heading,
+		LastUpdated:      startTime,
+		RiskLevel:        riskLevel,
+		RiskDetails:      riskDetails,
+		ThreatScore:      threatScore,
+		ThreatIndicators: threatIndicators,
+		ActiveViolations: activeViolations,
 	}
 	e.mu.Unlock()
 
