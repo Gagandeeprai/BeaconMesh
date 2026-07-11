@@ -1,4 +1,4 @@
-version: "3.8"
+version: '3.8'
 
 services:
   simulation:
@@ -8,7 +8,12 @@ services:
     ports:
       - "8000:8000"
     networks:
-      - beaconmesh-network
+      - beaconmesh-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   backend:
     build:
@@ -16,12 +21,16 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8080:8080"
-    environment:
-      - SOLVER_URL=http://simulation:8000/api/v1/optimize/rescue
-    depends_on:
-      - simulation
     networks:
-      - beaconmesh-network
+      - beaconmesh-net
+    depends_on:
+      simulation:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   frontend:
     build:
@@ -29,13 +38,13 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
-    environment:
-      - VITE_API_URL=http://localhost:8080
+    networks:
+      - beaconmesh-net
     depends_on:
       - backend
-    networks:
-      - beaconmesh-network
+    environment:
+      - NODE_ENV=production
 
 networks:
-  beaconmesh-network:
+  beaconmesh-net:
     driver: bridge
