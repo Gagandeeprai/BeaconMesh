@@ -19,6 +19,9 @@ import MissionsView from "./components/MissionsView";
 import AnalyticsView from "./components/AnalyticsView";
 import ReportsView from "./components/ReportsView";
 import SettingsView from "./components/SettingsView";
+import IngestionPanel from "./components/IngestionPanel";
+import ReplayView from "./components/ReplayView";
+import AdminView from "./components/AdminView";
 
 import { Vessel, Alert, Mission, WeatherCondition, NetworkTrace } from "./types";
 import {
@@ -689,6 +692,15 @@ export default function App() {
       case "analytics":
         return <AnalyticsView />;
 
+      case "performance":
+        return <IngestionPanel />;
+
+      case "replay":
+        return <ReplayView />;
+
+      case "admin":
+        return <AdminView />;
+
       case "reports":
         return <ReportsView alerts={alerts} missions={missions} />;
 
@@ -721,6 +733,12 @@ export default function App() {
         return "Meteorological wave swell vectors and marine safety advisories";
       case "analytics":
         return "Aggregated fleet response performance charts and statistical indexes";
+      case "performance":
+        return "Live ingestion throughput, p50/p99/max latency, and SAT stress-test controller";
+      case "replay":
+        return "Historical incident playback with georeferenced vessel track timeline";
+      case "admin":
+        return "Runtime configuration manager — applies immediately without service restart";
       case "reports":
         return "Compile official naval closeout incident documents powered by Gemini AI";
       case "settings":

@@ -499,21 +499,46 @@ export default function LiveMapConsole({
           "fill-color": [
             "match",
             ["get", "type"],
-            "fishing-ban", "rgba(6, 182, 212, 0.08)",
-            "military-restricted", "rgba(239, 68, 68, 0.08)",
-            "port-channel", "rgba(234, 179, 8, 0.06)",
-            "rgba(148, 163, 184, 0.08)"
+            "marine_protected",   "rgba(16, 185, 129, 0.12)",  // green
+            "fishing-ban",        "rgba(16, 185, 129, 0.08)",
+            "military",           "rgba(239, 68, 68, 0.10)",   // red
+            "military-restricted","rgba(239, 68, 68, 0.08)",
+            "shipping_lane",      "rgba(59, 130, 246, 0.08)",  // blue
+            "port-channel",       "rgba(234, 179, 8, 0.06)",
+            "restricted",         "rgba(245, 158, 11, 0.10)",  // amber
+            "rgba(148, 163, 184, 0.06)"
           ],
-          "fill-outline-color": [
-            "match",
-            ["get", "type"],
-            "fishing-ban", "#06b6d4",
-            "military-restricted", "#ef4444",
-            "port-channel", "#eab308",
-            "#94a3b8"
-          ]
+          "fill-opacity": 0.9
         }
       });
+
+      // Hardcoded Karnataka coastal fallback zones (shown when backend is offline)
+      const karnatakaFallbackZones = {
+        type: "FeatureCollection" as const,
+        features: [
+          {
+            type: "Feature" as const,
+            geometry: { type: "Polygon" as const, coordinates: [[[73.6, 12.5], [73.6, 12.8], [74.0, 12.8], [74.0, 12.5], [73.6, 12.5]]] },
+            properties: { id: "fb-mpa-1", name: "Gulf of Mannar Marine Protected Area", type: "marine_protected", description: "Marine Protected Area" }
+          },
+          {
+            type: "Feature" as const,
+            geometry: { type: "Polygon" as const, coordinates: [[[74.0, 14.6], [74.0, 14.9], [74.3, 14.9], [74.3, 14.6], [74.0, 14.6]]] },
+            properties: { id: "fb-mil-1", name: "Karwar Naval Base Exclusion Zone", type: "military", description: "Military Restricted Zone" }
+          },
+          {
+            type: "Feature" as const,
+            geometry: { type: "Polygon" as const, coordinates: [[[73.8, 12.9], [74.8, 12.9], [74.8, 13.0], [73.8, 13.0], [73.8, 12.9]]] },
+            properties: { id: "fb-lane-1", name: "West Coast Main Shipping Lane", type: "shipping_lane", description: "Primary maritime traffic corridor" }
+          },
+          {
+            type: "Feature" as const,
+            geometry: { type: "Polygon" as const, coordinates: [[[74.1, 13.3], [74.1, 13.5], [74.4, 13.5], [74.4, 13.3], [74.1, 13.3]]] },
+            properties: { id: "fb-rst-1", name: "Malpe Coastal Restricted Zone", type: "restricted", description: "Environmental protection zone" }
+          }
+        ]
+      };
+      (map.getSource("geojson-zones") as maplibregl.GeoJSONSource)?.setData(karnatakaFallbackZones as any);
 
       map.addLayer({
         id: "zones-border",
@@ -523,13 +548,18 @@ export default function LiveMapConsole({
           "line-color": [
             "match",
             ["get", "type"],
-            "fishing-ban", "#06b6d4",
+            "marine_protected",    "#10b981",
+            "fishing-ban",         "#06b6d4",
+            "military",            "#ef4444",
             "military-restricted", "#ef4444",
-            "port-channel", "#eab308",
+            "shipping_lane",       "#3b82f6",
+            "port-channel",        "#eab308",
+            "restricted",          "#f59e0b",
             "#94a3b8"
           ],
           "line-width": 1.5,
-          "line-opacity": 0.5
+          "line-opacity": 0.6,
+          "line-dasharray": ["match", ["get", "type"], "shipping_lane", ["literal", [4, 3]], ["literal", [1]]]
         }
       });
 

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -17,7 +17,10 @@ import {
   Settings,
   Bell,
   ChevronRight,
-  AlertTriangle
+  AlertTriangle,
+  Activity,
+  History,
+  ShieldCheck
 } from "lucide-react";
 
 interface SidebarProps {
@@ -34,16 +37,19 @@ export default function Sidebar({
   activeAlertsCount 
 }: SidebarProps) {
   const menuItems = [
-    { id: "dashboard", label: "Dashboard", icon: Compass },
-    { id: "alerts", label: "Alerts", icon: AlertOctagon, badge: activeAlertsCount },
-    { id: "vessels", label: "Vessels", icon: Ship },
-    { id: "missions", label: "Missions", icon: Radio },
-    { id: "map", label: "Live Map", icon: Map },
-    { id: "weather", label: "Weather", icon: CloudRain },
-    { id: "ports", label: "Ports", icon: Anchor },
-    { id: "analytics", label: "Analytics", icon: BarChart3 },
-    { id: "reports", label: "Reports", icon: FileText },
-    { id: "settings", label: "Settings", icon: Settings },
+    { id: "dashboard",   label: "Dashboard",        icon: Compass },
+    { id: "alerts",      label: "Alerts",            icon: AlertOctagon, badge: activeAlertsCount },
+    { id: "vessels",     label: "Vessels",           icon: Ship },
+    { id: "missions",    label: "Missions",          icon: Radio },
+    { id: "map",         label: "Live Map",           icon: Map },
+    { id: "weather",     label: "Weather",            icon: CloudRain },
+    { id: "ports",       label: "Ports",              icon: Anchor },
+    { id: "analytics",   label: "Analytics",          icon: BarChart3 },
+    { id: "performance", label: "Ingest Monitor",     icon: Activity },
+    { id: "replay",      label: "Incident Replay",    icon: History },
+    { id: "reports",     label: "Reports",            icon: FileText },
+    { id: "settings",    label: "Settings",           icon: Settings },
+    { id: "admin",       label: "Admin Settings",     icon: ShieldCheck },
   ];
 
   return (

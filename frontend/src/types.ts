@@ -53,6 +53,13 @@ export interface Alert {
   responder?: string;
   etaMin?: number;
   description: string;
+  // v2 engine fields (optional — populated when backend is online)
+  mmsi?: string;
+  violationType?: string;
+  riskLevel?: "Low" | "Medium" | "High" | "Critical";
+  acknowledgedBy?: string;
+  resolvedAt?: string;
+  resolveNote?: string;
 }
 
 export interface TraceHop {

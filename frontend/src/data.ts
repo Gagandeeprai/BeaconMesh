@@ -433,7 +433,7 @@ export const DEFAULT_WEATHER: WeatherCondition = {
   waveDirection: 240,
   visibility: 6,
   seaState: "Moderate",
-  advisory: "Small fishing vessels should exercise caution due to 1.6 m waves and 18 km/h southwest winds.",
+  advisory: { severity: "Caution", message: "Small fishing vessels should exercise caution due to 1.6 m waves and 18 km/h southwest winds." },
 };
 
 export const MOCK_STATIONS = [
