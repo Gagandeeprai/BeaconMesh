@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/beaconmesh/backend/internal/database"
+
 	aisApp "github.com/beaconmesh/backend/internal/ais/application"
 	aisDomain "github.com/beaconmesh/backend/internal/ais/domain"
 	aisInfra "github.com/beaconmesh/backend/internal/ais/infrastructure"
@@ -24,6 +26,18 @@ import (
 
 func main() {
 	log.Println("Starting BeaconMesh Weather Service...")
+
+	// 0. Initialize PostgreSQL/PostGIS database
+	postgresURL := os.Getenv("POSTGRES_URL")
+	if postgresURL == "" {
+		postgresURL = "postgres://postgres:postgres@localhost:5432/beaconmesh?sslmode=disable"
+	}
+	dbPool, dbErr := database.InitDB(postgresURL)
+	if dbErr != nil {
+		log.Printf("database: initialization warning (proceeding without DB): %v", dbErr)
+	} else {
+		defer dbPool.Close()
+	}
 
 	// 1. Initialize Event Bus
 	eventBus := event.NewEventBus()
@@ -151,6 +165,10 @@ func main() {
 	mux.HandleFunc("POST /api/v1/telemetry", processingHandler.IngestTelemetry)
 	mux.HandleFunc("GET /api/v1/processing/metrics", processingHandler.GetMetrics)
 	mux.HandleFunc("POST /api/v1/processing/benchmark", processingHandler.ToggleBenchmark)
+
+	// Historical Database Analytics & Replay streams
+	mux.HandleFunc("GET /api/v1/analytics", database.GetAnalyticsSummary)
+	mux.HandleFunc("GET /api/v1/replay/ws", database.HandleReplayWebSocket)
 
 	// Recovery middleware — catches panics in HTTP handlers
 	recoveryMux := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

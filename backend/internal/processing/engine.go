@@ -7,6 +7,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/beaconmesh/backend/internal/database"
 )
 
 // VesselState holds the current known location and metadata for a vessel in-memory.
@@ -89,7 +91,7 @@ func (e *Engine) ProcessUpdate(id string, name string, vType string, lat, lon, s
 			severity = "Low"
 		}
 
-		e.alerts.AddOrUpdateAlert(Alert{
+		alert := Alert{
 			ID:            fmt.Sprintf("ALERT-%s-%s", id, v.RuleName),
 			VesselID:      id,
 			VesselName:    name,
@@ -102,7 +104,22 @@ func (e *Engine) ProcessUpdate(id string, name string, vType string, lat, lon, s
 			Severity:      severity,
 			PeopleOnboard: 12,
 			Description:   v.Description,
-		})
+		}
+
+		e.alerts.AddOrUpdateAlert(alert)
+
+		if atomic.LoadInt32(&e.benchmarkActive) == 0 {
+			go func(a Alert) {
+				_ = database.RecordAlertHistory(database.DB, a.ID, a.VesselID, a.VesselName, a.Type, a.Location, a.Status, a.Severity, a.Description)
+			}(alert)
+		}
+	}
+
+	// Async log coordinates to database for persistent historical tracking
+	if atomic.LoadInt32(&e.benchmarkActive) == 0 {
+		go func() {
+			_ = database.RecordVesselHistory(database.DB, id, name, vType, lat, lon, speed, riskLevel)
+		}()
 	}
 
 	elapsed := time.Since(startTime)

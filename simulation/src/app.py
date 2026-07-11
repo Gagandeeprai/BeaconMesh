@@ -54,10 +54,55 @@ class OptimizeRescueRequest(BaseModel):
     responders: List[Dict[str, Any]]
     weather: Dict[str, Any]
 
+class ScenarioRequest(BaseModel):
+    scenarioName: str
+    anomalyType: Optional[str] = None
+
+# Global simulation weather state
+weather_state = {
+    "waveHeight": 1.5,
+    "windSpeed": 15.0,
+    "visibility": 10.0,
+    "condition": "clear"
+}
+
 # API Routes
 @app.get("/health")
 def health():
     return {"status": "healthy", "service": "simulation-engine"}
+
+@app.post("/api/v1/sim/scenario")
+def trigger_scenario(req: ScenarioRequest):
+    global weather_state
+    if req.scenarioName == "storm_intrusion":
+        weather_state = {
+            "waveHeight": 4.5,
+            "windSpeed": 55.0,
+            "visibility": 0.4,
+            "condition": "storm"
+        }
+        for vessel in engine.get_vessels():
+            if req.anomalyType == "speeding" and vessel.vessel_type == "FISHING":
+                vessel.speed_knots = 18.0
+            elif req.anomalyType == "loitering" and vessel.vessel_type == "FISHING":
+                vessel.speed_knots = 0.2
+    else:
+        weather_state = {
+            "waveHeight": 1.5,
+            "windSpeed": 15.0,
+            "visibility": 10.0,
+            "condition": "clear"
+        }
+    return {
+        "status": "SCENARIO_APPLIED",
+        "scenario": req.scenarioName,
+        "weather": weather_state
+    }
+
+@app.get("/api/v1/sim/weather")
+def get_simulation_weather():
+    return {"weather": weather_state}
+
 
 @app.post("/api/v1/optimize/rescue")
 def optimize_rescue(req: OptimizeRescueRequest):
