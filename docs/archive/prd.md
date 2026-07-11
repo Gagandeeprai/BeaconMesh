@@ -1,55 +1,492 @@
-> **⚠️ ARCHIVED — Historical Document**
->
-> This document is retained for historical reference only. It describes the **original conceptual design** of BeaconMesh and does **not reflect the current implementation**.
->
-> For the current architecture, see **[docs/architecture/architecture-overview.md](../architecture/architecture-overview.md)** — the canonical source of truth.
->
-> *Archived: July 2026*
+# Product Requirements Document (PRD)
+
+# BeaconMesh – Real-Time Maritime Surveillance & Safety Intelligence Platform
+
+**Version:** 2.0
+**Status:** Draft
+**Problem Statement Alignment:** Problem Statement 5 – Real-Time Maritime Surveillance 
 
 ---
 
-# Product Requirement Document (PRD)
+# 1. Executive Summary
 
-## 1. Overview
-BeaconMesh is an offline-first maritime emergency coordination platform designed for small fishing vessels operating beyond cellular coverage. Small fishing vessels frequently operate in remote ocean areas without cellular/internet access. In the event of a vessel breakdown, medical emergency, or sinking, alerting rescue authorities is challenging.
+BeaconMesh is a high-performance maritime surveillance platform that continuously processes live vessel location updates, evaluates vessel behavior against regulatory and environmental rules, and generates real-time alerts for maritime authorities.
 
-BeaconMesh addresses this by leveraging a mesh-networking architecture. Nearby fishing vessels act as relay nodes, carrying and forwarding distress signals and telemetry packets via simulated low-bandwidth channels (LoRa, SMS, satellite transceivers) until a message reaches a gateway node with active cellular or internet connectivity. Coastal Search and Rescue (SAR) centers can then deploy and optimize rescue routing using optimized coordinate guidance.
+Unlike traditional systems that depend on heavyweight distributed streaming pipelines, BeaconMesh uses a lightweight, event-driven architecture capable of evaluating tens of thousands of vessel position updates per second while maintaining millisecond-scale alert latency.
 
-## 2. Target Audience & Personas
-* **Fishermen (Vessel Operators)**: Operating small vessels, equipped with low-cost hardware (e.g., LoRa transceivers, basic GPS). Need simple, automated SOS trigger mechanisms, and a basic dashboard to view weather alerts or nearby vessels.
-* **Search and Rescue (SAR) Coordinators**: Located at coastal command centers. They have high-speed internet, monitor the Mapbox-based visual dashboard, coordinate rescue resources, and launch optimized rescue routing plans.
-* **Rescue Vessel Operators**: Captains of Coast Guard or volunteer rescue ships. They receive optimized routing targets to reach distressed vessels quickly.
+In addition to surveillance, BeaconMesh incorporates weather intelligence and emergency coordination to improve maritime safety and operational awareness.
 
-## 3. Core Functional Requirements
-### F-1: Vessel Telemetry Tracking
-* Vessels must periodically log GPS coordinates, heading, speed, battery, and distress status.
-* When offline, telemetry is saved locally and periodically broadcasted to nearby nodes.
+---
 
-### F-2: Mesh Network SOS Propagation
-* If a vessel triggers an SOS (manually or via sensor triggers like capsize), a high-priority distress packet is generated.
-* The message must propagate node-by-node (vessel-to-vessel) using a store-carry-forward epidemic routing protocol.
-* Once any vessel in the mesh moves within range of a coastal base station or cellular network, the SOS message is instantly uploaded to the central database.
+# 2. Vision
 
-### F-3: Search & Rescue (SAR) Routing Optimization
-* Using Google OR-Tools, the platform must optimize the paths of available rescue vessels to reach distressed vessels.
-* Constraints: Rescue vessel speed, fuel capacity, patient occupancy capacity, distress priority levels, and sea state coefficients.
-* Output: Visualized optimized routes for rescue vessels on the dispatcher map.
+> Build the next-generation maritime surveillance platform capable of detecting maritime violations, predicting operational risks, and coordinating rapid response through a scalable, event-driven architecture.
 
-### F-4: Simulation Engine
-* A Python-based simulation engine to model:
-  * Vessel movements (synthetic trajectories based on typical fishing patterns).
-  * Radio transceiver ranges (e.g., LoRa line-of-sight propagation, path loss, and message collision).
-  * Gateway upload mechanisms.
-  * Triggering simulated emergencies.
+---
 
-### F-5: Coastal Monitoring Dashboard
-* A web interface using Mapbox GL JS to display:
-  * Known positions of all vessels (with last-seen timestamps and relay path history).
-  * Active emergency alerts.
-  * Live updates of optimization routes generated for rescue missions.
+# 3. Problem Statement
 
-## 4. Non-Functional Requirements
-* **Offline-First Resilience**: All vessel software must function completely offline. Database sync should resume immediately upon mesh connection.
-* **Data Security & Integrity**: Every distress packet must be cryptographically signed by the originating vessel's private key to prevent spoofing or false distress alarms.
-* **Low Bandwidth Optimization**: Telemetry and distress payloads must be serialized using a compact binary format (e.g., Protocol Buffers or custom binary packing) to fit within LoRa's small MTU (Maximum Transmission Unit ~222 bytes).
-* **Fault Tolerance**: No single point of failure in the mesh. The protocol must run decentralized.
+Maritime authorities receive millions of AIS position reports every day.
+
+Current systems suffer from:
+
+* High processing latency
+* Heavy infrastructure requirements
+* Delayed violation detection
+* Limited operational awareness
+* Poor integration of weather intelligence
+* Fragmented emergency response
+
+BeaconMesh addresses these challenges by processing vessel updates in-memory, performing real-time spatial evaluations, and delivering immediate operational alerts. 
+
+---
+
+# 4. Goals
+
+## Primary Goals
+
+* Process high-volume vessel position updates
+* Detect maritime violations in real time
+* Monitor vessel behavior continuously
+* Generate millisecond-scale alerts
+* Maintain high throughput without heavyweight streaming frameworks
+
+## Secondary Goals
+
+* Improve maritime safety
+* Predict environmental risk
+* Assist maritime authorities
+* Coordinate emergency response
+* Provide a comprehensive operational dashboard
+
+---
+
+# 5. Non Goals
+
+BeaconMesh is **not** intended to:
+
+* Replace national AIS infrastructure
+* Perform autonomous vessel navigation
+* Control maritime traffic
+* Replace VTS (Vessel Traffic Service)
+* Perform long-term historical analytics
+* Use cloud-scale distributed stream processing frameworks (Kafka/Flink/Spark)
+
+---
+
+# 6. Users
+
+## Primary Users
+
+* Coast Guard
+* Port Authorities
+* Fisheries Department
+* Marine Police
+* Environmental Agencies
+
+## Secondary Users
+
+* Disaster Management Authorities
+* Maritime Safety Organizations
+* Search & Rescue Teams
+
+---
+
+# 7. Core Capabilities
+
+## 7.1 Real-Time Vessel Tracking
+
+Receive continuous vessel updates.
+
+Display
+
+* Position
+* Heading
+* Speed
+* Course
+* Status
+
+Live on the operational map.
+
+---
+
+## 7.2 High-Speed Processing Engine
+
+Continuously process
+
+* AIS messages
+* Vessel telemetry
+* Position updates
+
+Requirements
+
+* In-memory processing
+* Low latency
+* Horizontal scalability
+* Concurrent execution
+
+---
+
+## 7.3 Geospatial Engine
+
+Responsible for
+
+* Point-in-polygon evaluation
+* Distance calculations
+* Zone lookup
+* Harbor lookup
+* Spatial indexing
+
+Supports
+
+* Marine Protected Areas
+* Fishing Zones
+* Port Boundaries
+* Territorial Waters
+* Custom Geofences
+
+---
+
+## 7.4 Rule Engine
+
+Evaluate vessel behavior against configurable rules.
+
+Examples
+
+### Illegal Fishing
+
+IF
+
+Vessel inside protected fishing zone
+
+↓
+
+Generate alert
+
+---
+
+### Speed Violation
+
+IF
+
+Speed > configured threshold
+
+↓
+
+Generate alert
+
+---
+
+### Restricted Area
+
+IF
+
+Vessel enters military zone
+
+↓
+
+Critical alert
+
+---
+
+### Loitering
+
+IF
+
+Vessel remains inside restricted area
+
+for configured duration
+
+↓
+
+Generate alert
+
+---
+
+### AIS Silence
+
+IF
+
+No AIS update
+
+for threshold duration
+
+↓
+
+Ghost vessel alert
+
+---
+
+## 7.5 Maritime Risk Engine
+
+Evaluate operational risk using
+
+* Wind speed
+* Wave height
+* Storm forecasts
+* Distance to harbor
+* Vessel movement
+* Weather trend
+
+Risk Levels
+
+* Low
+* Moderate
+* High
+* Critical
+
+---
+
+## 7.6 Weather Intelligence
+
+Integrate Open-Meteo
+
+Display
+
+* Wind
+* Waves
+* Rain
+* Pressure
+* Temperature
+
+Overlay weather on vessel map.
+
+---
+
+## 7.7 Alert Engine
+
+Generate alerts with
+
+* Severity
+* Timestamp
+* Vessel
+* Location
+* Rule Triggered
+* Recommended Action
+
+Severity
+
+* Info
+* Warning
+* Critical
+* Emergency
+
+---
+
+## 7.8 Emergency Coordination
+
+When a distress event occurs
+
+BeaconMesh
+
+* Identifies nearest assets
+* Calculates safest route
+* Displays incident
+* Tracks response progress
+
+---
+
+## 7.9 Operations Dashboard
+
+Display
+
+Fleet Overview
+
+Live Alerts
+
+Weather
+
+Risk Distribution
+
+System Health
+
+Recent Events
+
+Active Violations
+
+Live Vessel Map
+
+---
+
+# 8. Functional Requirements
+
+## Vessel Management
+
+* Live vessel tracking
+* Vessel details
+* Historical trail
+* Current status
+
+---
+
+## Surveillance
+
+* Geofence monitoring
+* Route monitoring
+* Speed monitoring
+* Behavior monitoring
+
+---
+
+## Alerting
+
+* Real-time alerts
+* Alert acknowledgement
+* Alert filtering
+* Alert history
+
+---
+
+## Weather
+
+* Live weather
+* Marine forecast
+* Weather overlays
+
+---
+
+## Emergency
+
+* SOS monitoring
+* Incident tracking
+* Rescue coordination
+
+---
+
+# 9. System Requirements
+
+The system shall
+
+* Process at least 50,000 vessel updates per second
+* Detect violations within milliseconds
+* Operate without heavyweight streaming platforms
+* Continue processing under burst traffic
+* Support concurrent evaluation
+
+---
+
+# 10. Non Functional Requirements
+
+Performance
+
+* <5 ms average rule evaluation
+* <100 ms dashboard updates
+
+Availability
+
+* 99.9% uptime
+
+Reliability
+
+* Fault tolerant
+* Graceful degradation
+
+Scalability
+
+* Tens of thousands of active vessels
+
+Maintainability
+
+* Clean Architecture
+* Modular services
+
+Observability
+
+* Metrics
+* Health checks
+* Structured logging
+
+---
+
+# 11. High-Level Architecture
+
+```text
+                 AIS Feed
+                     │
+          Ingestion Gateway
+                     │
+      High-Speed Processing Engine
+                     │
+          Vessel State Manager
+                     │
+      ┌──────────────┴──────────────┐
+      │                             │
+Geospatial Engine            Weather Engine
+      │                             │
+      └──────────────┬──────────────┘
+                     │
+               Rule Engine
+                     │
+               Alert Engine
+                     │
+        Emergency Coordination
+                     │
+          Operations Dashboard
+```
+
+---
+
+# 12. Technology Stack
+
+### Frontend
+
+* React 19
+* TypeScript
+* Vite
+* TailwindCSS
+* MapLibre GL
+
+### Backend
+
+* Go 1.22
+* Clean Architecture
+* Modular Monolith
+
+### Simulation
+
+* Python
+* FastAPI
+
+### Data
+
+* Open-Meteo
+* AIS Provider
+
+---
+
+# 13. Success Metrics
+
+Technical
+
+* ≥50,000 position updates/sec
+* Millisecond alert generation
+* Zero message loss under normal load
+* Stable memory usage
+* Fast dashboard rendering
+
+Operational
+
+* Reduced incident detection time
+* Faster operator response
+* Increased regulatory compliance visibility
+* Improved maritime situational awareness
+
+---
+
+# 14. Future Enhancements
+
+* Machine learning–based anomaly detection
+* Satellite AIS integration
+* Multi-agency collaboration
+* Drone and UAV integration
+* Predictive traffic congestion
+* Digital twin of maritime operations
+* Mobile operations application
+* Historical analytics and replay
+* Multi-region deployment
+
+---
+
+## One architectural recommendation
+
+To fully align with PS5, **promote the "High-Speed Processing Engine" to the centerpiece of the system**. In your current project, weather and emergency coordination are prominent. For this problem statement, the processing engine—responsible for ingesting, evaluating, and alerting on high-volume vessel streams—should be the core around which the other modules (weather, risk, and emergency response) are organized. This directly reflects the emphasis on throughput, low latency, and real-time spatial evaluation in the problem statement. 

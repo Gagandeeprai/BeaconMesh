@@ -93,7 +93,7 @@ export default function App() {
     }
   };
 
-  // 1-second Simulation Engine Ticker Loop
+  // 1-second Simulation Engine Ticker Loop + Telemetry Ingestion
   useEffect(() => {
     if (mode === "live") return;
     const interval = setInterval(() => {
@@ -102,9 +102,61 @@ export default function App() {
       setAlerts([...engine.alerts]);
       setMissions([...engine.missions]);
       setNetworkTraces([...engine.networkTraces]);
+
+      // Push telemetry for all simulated vessels to Go backend processing engine
+      engine.vessels.forEach(async (v) => {
+        if (v.isLiveAIS) return;
+        try {
+          await fetch(`${API_BASE}/api/v1/telemetry`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: v.id,
+              name: v.name,
+              type: v.type,
+              latitude: v.latitude,
+              longitude: v.longitude,
+              speed: v.speed,
+              waveHeight: weather.waveHeight,
+              windSpeed: weather.windSpeed,
+              visibility: weather.visibility * 1000.0, // convert km to meters
+            }),
+          });
+        } catch (err) {
+          // ignore
+        }
+      });
     }, 1000);
     return () => clearInterval(interval);
   }, [weather, mode, engine]);
+
+  // Poll backend alerts (every 2 seconds) and merge into UI state
+  useEffect(() => {
+    const fetchBackendAlerts = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/alerts`);
+        if (res.ok) {
+          const data = await res.json();
+          setAlerts((prev) => {
+            const mergedMap = new Map<string, Alert>();
+            prev.forEach((a) => mergedMap.set(a.id, a));
+            data.forEach((a: Alert) => {
+              mergedMap.set(a.id, a);
+            });
+            const merged = Array.from(mergedMap.values());
+            engine.alerts = merged;
+            return merged;
+          });
+        }
+      } catch (err) {
+        // ignore
+      }
+    };
+
+    fetchBackendAlerts();
+    const interval = setInterval(fetchBackendAlerts, 2000);
+    return () => clearInterval(interval);
+  }, [engine]);
 
   // 30-second AIS telemetry fetcher
   useEffect(() => {

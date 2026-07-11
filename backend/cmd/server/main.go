@@ -13,6 +13,7 @@ import (
 	aisInfra "github.com/beaconmesh/backend/internal/ais/infrastructure"
 	aisHttp "github.com/beaconmesh/backend/internal/ais/interfaces"
 	"github.com/beaconmesh/backend/internal/emergency"
+	"github.com/beaconmesh/backend/internal/processing"
 	"github.com/beaconmesh/backend/internal/shared/event"
 	weatherApp "github.com/beaconmesh/backend/internal/weather/application"
 	"github.com/beaconmesh/backend/internal/weather/domain"
@@ -94,6 +95,37 @@ func main() {
 
 	aisSvc.StartBackgroundRefresh(ctx)
 
+	// Initialize processing centerpiece
+	alertStore := processing.NewAlertStore()
+	processingEngine := processing.NewEngine(alertStore)
+	processingHandler := processing.NewHandler(processingEngine, alertStore)
+
+	// Background integration: periodically pull vessels from aisSvc and pump them into the processing engine
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				vessels, err := aisSvc.GetVessels(ctx)
+				if err == nil {
+					// Fetch current weather variables for context
+					var waveHeight, windSpeed, visibility float64 = 1.0, 10.0, 10000.0
+					if report, err := weatherSvc.GetWeatherReport(ctx, 12.9141, 74.8560); err == nil {
+						waveHeight = report.Marine.WaveHeight
+						windSpeed = report.Weather.WindSpeed
+						visibility = report.Weather.Visibility
+					}
+					for _, v := range vessels {
+						processingEngine.ProcessUpdate(v.ID, v.Name, v.Type, v.Latitude, v.Longitude, v.Speed, waveHeight, windSpeed, visibility)
+					}
+				}
+			}
+		}
+	}()
+
 	aisHandler := aisHttp.NewAISHandler(aisSvc)
 
 	rescueHandler := interfaces.NewRescueHandler("http://localhost:8000/api/v1/optimize/rescue")
@@ -106,6 +138,14 @@ func main() {
 	mux.HandleFunc("POST /api/v1/optimize/rescue", rescueHandler.OptimizeRescue)
 	mux.HandleFunc("POST /api/v1/emergency", emergency.TriggerEmergency)
 	mux.HandleFunc("GET /api/v1/emergency/pending", emergency.GetPendingEmergencies)
+
+	// Inmemory Geospatial, Rules & Ingestion endpoints
+	mux.HandleFunc("GET /api/v1/zones", processingHandler.GetZones)
+	mux.HandleFunc("GET /api/v1/alerts", processingHandler.GetAlerts)
+	mux.HandleFunc("POST /api/v1/alerts/acknowledge", processingHandler.AcknowledgeAlert)
+	mux.HandleFunc("POST /api/v1/telemetry", processingHandler.IngestTelemetry)
+	mux.HandleFunc("GET /api/v1/processing/metrics", processingHandler.GetMetrics)
+	mux.HandleFunc("POST /api/v1/processing/benchmark", processingHandler.ToggleBenchmark)
 
 	// Recovery middleware — catches panics in HTTP handlers
 	recoveryMux := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

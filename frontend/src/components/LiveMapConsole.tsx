@@ -46,6 +46,8 @@ const GLOBAL_PORTS: PortDetails[] = [
   { name: "New Mangalore Port", country: "India", lat: 12.93, lon: 74.82, code: "INNML", arriving: 6, departing: 4, anchored: 8 }
 ];
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8080";
+
 export default function LiveMapConsole({
   vessels,
   alerts,
@@ -75,6 +77,14 @@ export default function LiveMapConsole({
   const [hoverCoords, setHoverCoords] = useState<[number, number]>([24.9336, 67.0821]);
   const [currentTime, setCurrentTime] = useState<string>("12:34:21");
   const [playLive, setPlayLive] = useState<boolean>(true);
+
+  const [zones, setZones] = useState<any[]>([]);
+  const [metrics, setMetrics] = useState({
+    benchmarkActive: false,
+    throughput: 0,
+    avgLatencyUs: 0,
+    activeAlertsCount: 0
+  });
 
   // Accordion Toggles
   const [expandedSections, setExpandedSections] = useState({
@@ -197,6 +207,97 @@ export default function LiveMapConsole({
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Fetch pre-defined zones from Go backend processing engine
+  useEffect(() => {
+    const fetchZones = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/zones`);
+        if (res.ok) {
+          const data = await res.json();
+          setZones(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch zones:", err);
+      }
+    };
+    fetchZones();
+  }, []);
+
+  // Poll metrics from Go backend processing engine
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/processing/metrics`);
+        if (res.ok) {
+          const data = await res.json();
+          setMetrics(data);
+        }
+      } catch (err) {
+        // ignore offline
+      }
+    };
+    fetchMetrics();
+    const interval = setInterval(fetchMetrics, 1500);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleToggleBenchmark = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/processing/benchmark`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enable: !metrics.benchmarkActive })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMetrics(prev => ({ ...prev, benchmarkActive: data.benchmarkActive }));
+      }
+    } catch (err) {
+      console.error("Failed to toggle benchmark:", err);
+    }
+  };
+
+  // Sync zones geojson on load
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || zones.length === 0) return;
+
+    const updateZonesData = () => {
+      const source = map.getSource("geojson-zones") as maplibregl.GeoJSONSource;
+      if (source) {
+        const features = zones.map(z => {
+          const coords = z.boundary.map((c: any) => [c.longitude, c.latitude]);
+          if (coords.length > 0) {
+            coords.push([...coords[0]]); // close loop
+          }
+          return {
+            type: "Feature",
+            geometry: {
+              type: "Polygon",
+              coordinates: [coords]
+            },
+            properties: {
+              id: z.id,
+              name: z.name,
+              type: z.type,
+              description: z.description
+            }
+          };
+        });
+        source.setData({
+          type: "FeatureCollection",
+          features: features as any
+        });
+      }
+    };
+
+    if (map.loaded()) {
+      updateZonesData();
+    } else {
+      map.on("load", updateZonesData);
+    }
+  }, [zones]);
 
   // Coordinates updates ticker
   useEffect(() => {
@@ -382,6 +483,56 @@ export default function LiveMapConsole({
     mapRef.current = map;
 
     map.on("load", () => {
+      map.addSource("geojson-zones", {
+        type: "geojson",
+        data: {
+          type: "FeatureCollection",
+          features: []
+        }
+      });
+
+      map.addLayer({
+        id: "zones-fill",
+        type: "fill",
+        source: "geojson-zones",
+        paint: {
+          "fill-color": [
+            "match",
+            ["get", "type"],
+            "fishing-ban", "rgba(6, 182, 212, 0.08)",
+            "military-restricted", "rgba(239, 68, 68, 0.08)",
+            "port-channel", "rgba(234, 179, 8, 0.06)",
+            "rgba(148, 163, 184, 0.08)"
+          ],
+          "fill-outline-color": [
+            "match",
+            ["get", "type"],
+            "fishing-ban", "#06b6d4",
+            "military-restricted", "#ef4444",
+            "port-channel", "#eab308",
+            "#94a3b8"
+          ]
+        }
+      });
+
+      map.addLayer({
+        id: "zones-border",
+        type: "line",
+        source: "geojson-zones",
+        paint: {
+          "line-color": [
+            "match",
+            ["get", "type"],
+            "fishing-ban", "#06b6d4",
+            "military-restricted", "#ef4444",
+            "port-channel", "#eab308",
+            "#94a3b8"
+          ],
+          "line-width": 1.5,
+          "line-opacity": 0.5
+        }
+      });
+
       map.addSource("geojson-vessels", {
         type: "geojson",
         data: {
@@ -766,6 +917,48 @@ export default function LiveMapConsole({
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto pr-1 space-y-3">
+
+            {/* High-Speed Processing Engine (HSPE) Performance Panel */}
+            <div className="border border-cyan-500/20 rounded-xl overflow-hidden bg-[#031122]/40 p-3 space-y-2.5 font-mono text-[9px] shadow-sm">
+              <h4 className="text-[9.5px] font-bold text-[#00e5ff] uppercase tracking-wider flex items-center gap-1.5 border-b border-[#0d2238]/60 pb-1.5">
+                <Activity className="w-3.5 h-3.5 animate-pulse" /> Processing Engine
+              </h4>
+              <div className="space-y-1.5 text-slate-300">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">BENCHMARK:</span>
+                  <span className={metrics.benchmarkActive ? "text-emerald-400 font-bold" : "text-slate-400 font-bold"}>
+                    {metrics.benchmarkActive ? "ACTIVE" : "INACTIVE"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">THROUGHPUT:</span>
+                  <span className="text-cyan-400 font-bold">
+                    {metrics.throughput.toLocaleString(undefined, { maximumFractionDigits: 1 })} msg/s
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">AVG LATENCY:</span>
+                  <span className="text-cyan-400 font-bold">
+                    {metrics.avgLatencyUs.toFixed(2)} µs
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">VIOLATIONS:</span>
+                  <span className="text-red-400 font-bold">{metrics.activeAlertsCount}</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleToggleBenchmark}
+                className={`w-full py-1.5 rounded font-bold uppercase transition-all tracking-wider text-[8.5px] cursor-pointer text-center ${
+                  metrics.benchmarkActive
+                    ? "bg-red-500/15 border border-red-500/30 hover:border-red-500/50 text-red-400"
+                    : "bg-cyan-500/10 border border-cyan-500/20 hover:border-cyan-500/40 text-cyan-400"
+                }`}
+              >
+                {metrics.benchmarkActive ? "Stop Ingestion Load" : "Start Ingestion Load"}
+              </button>
+            </div>
 
           {/* 1. SHIP TYPES (Accordion) */}
           <div className="border border-[#0d2238]/50 rounded-xl overflow-hidden bg-[#031122]/30">

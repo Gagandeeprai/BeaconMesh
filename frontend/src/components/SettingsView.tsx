@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -207,9 +207,24 @@ export default function SettingsView({ weather, onUpdateWeather }: SettingsViewP
                 <span className="text-slate-500 uppercase block text-[9px] font-bold">REGIONAL ZONE COORD</span>
                 <span className="text-slate-200 font-bold block mt-0.5">KARNATAKA SECTOR DISTRICT 3</span>
               </div>
-              <div className="bg-[#05162a] border border-[#0d2238]/60 p-3 rounded">
-                <span className="text-slate-500 uppercase block text-[9px] font-bold">SYSTEM INTEGRITY ROLE</span>
-                <span className="text-slate-200 font-bold block mt-0.5">COMMAND CHIEF OFFICER (ADMIN)</span>
+            </div>
+
+            <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider font-mono flex items-center gap-2 pt-2 border-t border-[#0d2238]/60">
+              <Compass className="w-4 h-4 text-[#00e5ff]" />
+              Safety Rule Thresholds
+            </h4>
+            <div className="space-y-2 text-[10.5px] font-mono">
+              <div className="bg-[#05162a] border border-[#0d2238]/60 p-2.5 rounded flex justify-between">
+                <span className="text-slate-500">PORT SPEED LIMIT</span>
+                <span className="text-cyan-400 font-bold">10.0 Kts</span>
+              </div>
+              <div className="bg-[#05162a] border border-[#0d2238]/60 p-2.5 rounded flex justify-between">
+                <span className="text-slate-500">LOITER TIMEOUT</span>
+                <span className="text-cyan-400 font-bold">15s</span>
+              </div>
+              <div className="bg-[#05162a] border border-[#0d2238]/60 p-2.5 rounded flex justify-between">
+                <span className="text-slate-500">AIS SILENCE ALARM</span>
+                <span className="text-cyan-400 font-bold">45s</span>
               </div>
             </div>
           </div>
