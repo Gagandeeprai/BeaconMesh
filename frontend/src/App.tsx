@@ -137,6 +137,7 @@ export default function App() {
         const res = await fetch(`${API_BASE}/api/v1/alerts`);
         if (res.ok) {
           const data = await res.json();
+          if (!data || !Array.isArray(data)) return;
           setAlerts((prev) => {
             const mergedMap = new Map<string, Alert>();
             prev.forEach((a) => mergedMap.set(a.id, a));

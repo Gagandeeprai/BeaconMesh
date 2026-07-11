@@ -84,7 +84,7 @@ func (s *AlertStore) GetActiveAlerts() []Alert {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var result []Alert
+	result := []Alert{}
 	for _, a := range s.alerts {
 		if a.Status != "Resolved" {
 			result = append(result, *a)
