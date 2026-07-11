@@ -48,14 +48,7 @@ export class SimulationEngine {
     // 4. Animate active network propagation traces
     this.tickNetworkTraces(dt);
 
-    // 5. Random SOS Spawner (every ~90 seconds in hybrid/simulation modes)
-    if (mode === "hybrid" || mode === "simulation") {
-      this.sosSpawnTimer += dt;
-      if (this.sosSpawnTimer >= 90) {
-        this.sosSpawnTimer = 0;
-        this.spawnRandomSOS(weather);
-      }
-    }
+    // 5. (Removed: Random SOS Spawner)
   }
 
   private spawnRandomSOS(weather: WeatherCondition) {
