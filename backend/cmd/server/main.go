@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -128,7 +129,11 @@ func main() {
 
 	aisHandler := aisHttp.NewAISHandler(aisSvc)
 
-	rescueHandler := interfaces.NewRescueHandler("http://localhost:8000/api/v1/optimize/rescue")
+	solverURL := os.Getenv("SOLVER_URL")
+	if solverURL == "" {
+		solverURL = "http://localhost:8000/api/v1/optimize/rescue"
+	}
+	rescueHandler := interfaces.NewRescueHandler(solverURL)
 
 	// 8. Setup Go 1.22 enhanced HTTP multiplexer router
 	mux := http.NewServeMux()
