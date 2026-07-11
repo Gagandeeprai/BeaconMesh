@@ -111,6 +111,7 @@ export default function MapOverview({
   const overlayGroupRef = useRef<L.LayerGroup | null>(null);
   const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
   const priorityGroupRef = useRef<L.LayerGroup | null>(null);
+  const traceGroupRef = useRef<L.LayerGroup | null>(null);
   const selectedPopupRef = useRef<L.Popup | null>(null);
 
   // ─── Filter Vessels ──────────────────────────────────────────
@@ -257,6 +258,10 @@ export default function MapOverview({
     overlayGroupRef.current = overlayGroup;
     clusterGroupRef.current = clusterGroup;
     priorityGroupRef.current = priorityGroup;
+
+    // Dedicated layer group for network propagation traces (redrawn each tick independently)
+    const traceGroup = L.layerGroup().addTo(mapInstance);
+    traceGroupRef.current = traceGroup;
 
     // Track zoom level for LOD
     mapInstance.on("zoomend", () => {
@@ -471,54 +476,8 @@ export default function MapOverview({
       });
     }
 
-    // ═══ G. NETWORK PROPAGATION TRACES ═══
-    const activeTraces = networkTraces.filter(t => t.active);
-    activeTraces.forEach((trace) => {
-      trace.hops.forEach((hop, hopIdx) => {
-        if (hopIdx >= trace.currentHopIndex + 1) {
-          L.polyline([hop.fromCoords, hop.toCoords], {
-            color: "#f59e0b", weight: 1, opacity: 0.15, dashArray: "2, 4",
-          }).addTo(overlayGroup);
-        } else if (hopIdx < trace.currentHopIndex) {
-          L.polyline([hop.fromCoords, hop.toCoords], {
-            color: "#10b981", weight: 2, opacity: 0.7,
-          }).addTo(overlayGroup);
-          const arrivedIcon = L.divIcon({
-            html: `<div style="width: 6px; height: 6px; background: #10b981; border-radius: 50%; box-shadow: 0 0 6px #10b981;"></div>`,
-            className: `trace-arrived-${trace.id}-${hopIdx}`,
-            iconSize: [6, 6], iconAnchor: [3, 3],
-          });
-          L.marker(hop.toCoords, { icon: arrivedIcon }).addTo(overlayGroup);
-        } else {
-          const from = hop.fromCoords;
-          const to = hop.toCoords;
-          const lat = from[0] + (to[0] - from[0]) * trace.hopProgress;
-          const lon = from[1] + (to[1] - from[1]) * trace.hopProgress;
 
-          L.polyline([from, to], {
-            color: "#f59e0b", weight: 1.5, opacity: 0.8, dashArray: "4, 3",
-          }).addTo(overlayGroup);
-
-          const packetIcon = L.divIcon({
-            html: `<div style="width: 8px; height: 8px; background: #fbbf24; border-radius: 50%; box-shadow: 0 0 12px #f59e0b;"></div>`,
-            className: `trace-packet-${trace.id}`,
-            iconSize: [8, 8], iconAnchor: [4, 4],
-          });
-          L.marker([lat, lon], { icon: packetIcon }).addTo(overlayGroup);
-        }
-      });
-
-      // Annotate source
-      const sourceIcon = L.divIcon({
-        html: `<div style="width: 12px; height: 12px; background: #f59e0b; border-radius: 50%; box-shadow: 0 0 16px #f59e0b; display: flex; align-items: center; justify-content: center; font-size: 7px;">📡</div>`,
-        className: `trace-source-${trace.id}`,
-        iconSize: [12, 12], iconAnchor: [6, 6],
-      });
-      const source = vessels.find(v => v.id === trace.sourceId);
-      if (source) {
-        L.marker([source.latitude, source.longitude], { icon: sourceIcon }).addTo(overlayGroup);
-      }
-    });
+    // ═══ G: Network traces moved to dedicated useEffect below ═══
 
     // ═══ H. VESSEL MARKERS ═══
     filteredVessels.forEach((v) => {
@@ -583,7 +542,65 @@ export default function MapOverview({
       }
     });
 
-  }, [vessels, alerts, selectedVessel, filterType, searchQuery, layers, currentZoom, networkTraces, buildVesselIcon, getVesselTier, onSelectVessel, onTriggerPropagation]);
+  }, [vessels, alerts, selectedVessel, filterType, searchQuery, layers, currentZoom, buildVesselIcon, getVesselTier, onSelectVessel, onTriggerPropagation]);
+
+  // ─── 3. Network Trace Animation (own useEffect — fires each tick without full map redraw) ───
+  useEffect(() => {
+    const traceGroup = traceGroupRef.current;
+    if (!traceGroup) return;
+    traceGroup.clearLayers();
+
+    const activeTraces = networkTraces.filter(t => t.active);
+    activeTraces.forEach((trace) => {
+      trace.hops.forEach((hop, hopIdx) => {
+        if (hopIdx >= trace.currentHopIndex + 1) {
+          // Future hop — dim amber dashed line
+          L.polyline([hop.fromCoords, hop.toCoords], {
+            color: "#f59e0b", weight: 1, opacity: 0.15, dashArray: "2, 4",
+          }).addTo(traceGroup);
+        } else if (hopIdx < trace.currentHopIndex) {
+          // Past hop — solid green + arrived dot
+          L.polyline([hop.fromCoords, hop.toCoords], {
+            color: "#10b981", weight: 2, opacity: 0.7,
+          }).addTo(traceGroup);
+          const arrivedIcon = L.divIcon({
+            html: `<div style="width: 6px; height: 6px; background: #10b981; border-radius: 50%; box-shadow: 0 0 6px #10b981;"></div>`,
+            className: `trace-arrived-${trace.id}-${hopIdx}`,
+            iconSize: [6, 6], iconAnchor: [3, 3],
+          });
+          L.marker(hop.toCoords, { icon: arrivedIcon }).addTo(traceGroup);
+        } else {
+          // Active hop — interpolated packet marker driven by hopProgress
+          const from = hop.fromCoords;
+          const to = hop.toCoords;
+          const lat = from[0] + (to[0] - from[0]) * trace.hopProgress;
+          const lon = from[1] + (to[1] - from[1]) * trace.hopProgress;
+
+          L.polyline([from, to], {
+            color: "#f59e0b", weight: 1.5, opacity: 0.8, dashArray: "4, 3",
+          }).addTo(traceGroup);
+
+          const packetIcon = L.divIcon({
+            html: `<div style="width: 8px; height: 8px; background: #fbbf24; border-radius: 50%; box-shadow: 0 0 12px #f59e0b;"></div>`,
+            className: `trace-packet-${trace.id}`,
+            iconSize: [8, 8], iconAnchor: [4, 4],
+          });
+          L.marker([lat, lon], { icon: packetIcon }).addTo(traceGroup);
+        }
+      });
+
+      // Source node — 📡 beacon icon
+      const sourceIcon = L.divIcon({
+        html: `<div style="width: 12px; height: 12px; background: #f59e0b; border-radius: 50%; box-shadow: 0 0 16px #f59e0b; display: flex; align-items: center; justify-content: center; font-size: 7px;">📡</div>`,
+        className: `trace-source-${trace.id}`,
+        iconSize: [12, 12], iconAnchor: [6, 6],
+      });
+      const source = vessels.find(v => v.id === trace.sourceId);
+      if (source) {
+        L.marker([source.latitude, source.longitude], { icon: sourceIcon }).addTo(traceGroup);
+      }
+    });
+  }, [networkTraces, vessels]);
 
   // ─── Map Actions ────────────────────────────────────────────
   const handleZoomIn = () => mapRef.current?.zoomIn();

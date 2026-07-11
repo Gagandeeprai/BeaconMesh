@@ -1,9 +1,9 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Radio, Plus, CheckCircle, Clock, ShieldAlert, FileText, ChevronRight } from "lucide-react";
 import { Mission, Alert } from "../types";
 
@@ -27,7 +27,48 @@ export default function MissionsView({
   const [selectedMissionId, setSelectedMissionId] = useState<string>(missions[0]?.id || "");
   const [newLogText, setNewLogText] = useState("");
 
+  // Live ETA countdown: tick each active mission's ETA down every second
+  const [etaCounters, setEtaCounters] = useState<Record<string, number>>(() => {
+    const init: Record<string, number> = {};
+    missions.forEach(m => { init[m.id] = m.etaMin; });
+    return init;
+  });
+
+  // Sync counters when missions list changes (new mission added)
+  useEffect(() => {
+    setEtaCounters(prev => {
+      const updated = { ...prev };
+      missions.forEach(m => {
+        if (!(m.id in updated)) updated[m.id] = m.etaMin;
+      });
+      return updated;
+    });
+  }, [missions]);
+
+  // Tick countdown every second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setEtaCounters(prev => {
+        const next = { ...prev };
+        missions.forEach(m => {
+          if (m.status !== "Completed" && (next[m.id] ?? 0) > 0) {
+            next[m.id] = (next[m.id] ?? 0) - (1 / 60); // subtract 1 real second = 1/60 minute
+          }
+        });
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [missions]);
+
   const activeMission = missions.find(m => m.id === selectedMissionId) || missions[0];
+
+  // Auto-select the newest mission whenever a new one is dispatched
+  useEffect(() => {
+    if (missions.length > 0) {
+      setSelectedMissionId(missions[0].id);
+    }
+  }, [missions.length]);
 
   const handleAddLog = (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,7 +127,18 @@ export default function MissionsView({
                     <span className="truncate max-w-[100px]">{m.responder}</span>
                   </div>
                   {!isCompleted && (
-                    <span className="text-amber-400">ETA {m.etaMin}m</span>
+                    <span className={`font-bold ${
+                      (etaCounters[m.id] ?? m.etaMin) <= 0
+                        ? "text-emerald-400"
+                        : (etaCounters[m.id] ?? m.etaMin) < 5
+                        ? "text-red-400 animate-pulse"
+                        : "text-amber-400"
+                    }`}>
+                      {(etaCounters[m.id] ?? m.etaMin) <= 0
+                        ? "On Scene"
+                        : `ETA ${Math.ceil(etaCounters[m.id] ?? m.etaMin)}m`
+                      }
+                    </span>
                   )}
                 </div>
               </div>
@@ -125,24 +177,31 @@ export default function MissionsView({
 
             {/* Timeline log feed */}
             <div className="flex-1 p-6 overflow-y-auto space-y-4 bg-slate-950/20">
-              <div className="relative border-l border-[#0e2c4c] ml-3 pl-6 space-y-5">
-                {activeMission.logs.map((log, index) => (
-                  <div key={index} className="relative group">
-                    {/* Ring dot */}
-                    <span className="absolute -left-[30px] top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#031122] border border-[#00e5ff]">
-                      <span className="h-1.5 w-1.5 rounded-full bg-[#00e5ff]"></span>
-                    </span>
-                    
-                    <div className="bg-[#020a14] border border-[#0d2238]/60 rounded-lg p-3 shadow-sm hover:border-[#1e4976]/40 transition-colors">
-                      <div className="flex justify-between text-[10px] font-mono text-slate-500 mb-1">
-                        <span>Command Dispatch Log</span>
-                        <span>{log.time}</span>
+              {activeMission.logs.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-center text-slate-600">
+                  <Radio className="w-6 h-6 mb-2 opacity-30" />
+                  <p className="text-[10px] font-mono">Awaiting first transmission log…</p>
+                </div>
+              ) : (
+                <div className="relative border-l border-[#0e2c4c] ml-3 pl-6 space-y-5">
+                  {activeMission.logs.map((log, index) => (
+                    <div key={index} className="relative group">
+                      {/* Ring dot — outermost ring */}
+                      <span className="absolute -left-[30px] top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#031122] border border-[#00e5ff]">
+                        <span className="h-1.5 w-1.5 rounded-full bg-[#00e5ff]"></span>
+                      </span>
+                      
+                      <div className="bg-[#020a14] border border-[#0d2238]/60 rounded-lg p-3 shadow-sm hover:border-[#1e4976]/40 transition-colors">
+                        <div className="flex justify-between text-[10px] font-mono text-slate-500 mb-1">
+                          <span>Command Dispatch Log</span>
+                          <span>{log.time}</span>
+                        </div>
+                        <p className="text-xs text-slate-300 font-sans leading-relaxed">{log.text}</p>
                       </div>
-                      <p className="text-xs text-slate-300 font-sans leading-relaxed">{log.text}</p>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Input Log block */}

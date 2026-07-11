@@ -1,22 +1,24 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import React, { useState } from "react";
-import { Plus, Search, AlertTriangle, AlertOctagon, Heart, Flame, ShieldAlert, Compass, CheckCircle } from "lucide-react";
-import { Alert, AlertType, AlertSeverity } from "../types";
+import { Plus, Search, AlertTriangle, Flame, Heart, Anchor, Wrench, Zap, Ship } from "lucide-react";
+import { Alert, AlertType, AlertSeverity, Vessel } from "../types";
 import { EMERGENCY_TYPES } from "../data";
 
 interface AlertsViewProps {
   alerts: Alert[];
+  vessels: Vessel[];
   onTriggerAlert: (newAlert: Omit<Alert, "id" | "time" | "location">) => void;
   onSelectAlert: (alert: Alert) => void;
   setCurrentTab: (tab: string) => void;
 }
 
 export default function AlertsView({ 
-  alerts, 
+  alerts,
+  vessels,
   onTriggerAlert, 
   onSelectAlert,
   setCurrentTab 
@@ -36,12 +38,31 @@ export default function AlertsView({
   const [formDesc, setFormDesc] = useState("");
   const [showTriggerForm, setShowTriggerForm] = useState(false);
 
+  // Vessel picker: auto-fill form fields from an existing fleet vessel
+  const handlePickFleetVessel = (vesselId: string) => {
+    if (!vesselId) return;
+    const v = vessels.find(v => v.id === vesselId);
+    if (v) {
+      setFormVesselName(v.name);
+      setFormVesselId(v.id);
+      setFormLat(v.latitude);
+      setFormLng(v.longitude);
+      setFormPeopleOnboard(v.peopleOnboard);
+    }
+  };
+
+  // Only vessels that are genuinely eligible to call for help:
+  // must be Active, not already in Distress/Support/Completed/Offline, not LiveAIS
+  const sosCandidates = vessels.filter(
+    v => !v.isLiveAIS && v.status === "Active"
+  );
+
   const handleSubmitMockAlert = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formVesselName || !formVesselId) return;
 
     onTriggerAlert({
-      vesselId: formVesselId.toUpperCase(),
+      vesselId: formVesselId,
       vesselName: formVesselName,
       type: formType,
       latitude: Number(formLat),
@@ -125,12 +146,38 @@ export default function AlertsView({
           className="bg-[#020d1a] border border-red-900/30 rounded-xl p-6 shadow-xl space-y-4 max-w-3xl animate-fadeIn"
         >
           <h4 className="text-sm font-bold text-red-200 uppercase tracking-wider font-mono flex items-center gap-2">
-            <AlertOctagon className="w-4 h-4 text-red-500" />
+            <AlertTriangle className="w-4 h-4 text-red-500" />
             Distress Beacon Simulation Form
           </h4>
           <p className="text-xs text-slate-400 font-sans leading-relaxed">
             Fill this form to simulate an incoming VHF Digital Selective Calling (DSC) distress broadcast from a regional vessel along the Karnataka coastline. This will update the map in real-time.
           </p>
+
+          {/* Vessel Picker — only shows Active vessels not already in distress */}
+          <div className="bg-[#04111f] border border-[#0d2238] rounded-lg p-3 space-y-1.5">
+            <label className="text-[10px] text-[#00e5ff] font-mono font-bold uppercase flex items-center justify-between">
+              <span className="flex items-center gap-1.5"><Ship className="w-3 h-3" /> Quick-Select Fleet Vessel</span>
+              <span className="text-slate-500 normal-case font-normal">
+                {sosCandidates.length} eligible vessel{sosCandidates.length !== 1 ? "s" : ""}
+              </span>
+            </label>
+            <select
+              id="vessel-picker-dropdown"
+              defaultValue=""
+              onChange={(e) => handlePickFleetVessel(e.target.value)}
+              className="w-full bg-[#05162a] text-xs text-slate-200 border border-[#0d2238] rounded-lg px-3 py-2 focus:outline-none focus:border-[#00e5ff] disabled:opacity-50"
+              disabled={sosCandidates.length === 0}
+            >
+              <option value="">
+                {sosCandidates.length === 0 ? "— No eligible vessels (all in distress or offline) —" : "— Or type custom vessel below —"}
+              </option>
+              {sosCandidates.map(v => (
+                <option key={v.id} value={v.id}>
+                  {v.name} ({v.id}) · {v.type} · {v.peopleOnboard} crew
+                </option>
+              ))}
+            </select>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -259,6 +306,29 @@ export default function AlertsView({
         ) : (
           filteredAlerts.map((alert) => {
             const isResolved = alert.status === "Resolved";
+
+            // Per-AlertType icon mapping (covers every union member)
+            const getAlertIcon = () => {
+              const cls = "w-4 h-4";
+              switch (alert.type) {
+                case "Medical Emergency":  return <Heart className={cls} />;
+                case "Fire Hazard":        return <Flame className={cls} />;
+                case "Capsized":           return <Anchor className={cls} />;
+                case "Mechanical Issue":   return <Wrench className={cls} />;
+                case "Grounding":          return <Zap className={cls} />;
+                case "Engine Failure":
+                default:                  return <AlertTriangle className={cls} />;
+              }
+            };
+
+            // Per-AlertSeverity badge colour (covers High / Medium / Low)
+            const getSeverityStyle = () => {
+              switch (alert.severity) {
+                case "High":   return "bg-red-500/15 text-red-400";
+                case "Medium": return "bg-yellow-500/15 text-yellow-400";
+                case "Low":    return "bg-slate-500/15 text-slate-400";
+              }
+            };
             return (
               <div 
                 key={alert.id}
@@ -272,10 +342,8 @@ export default function AlertsView({
                 <div>
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2">
-                      <span className={`p-1.5 rounded ${
-                        alert.severity === "High" ? "bg-red-500/15 text-red-400" : "bg-yellow-500/15 text-yellow-400"
-                      }`}>
-                        <AlertTriangle className="w-4 h-4" />
+                      <span className={`p-1.5 rounded ${getSeverityStyle()}`}>
+                        {getAlertIcon()}
                       </span>
                       <div>
                         <h4 className="text-xs font-bold text-slate-200">{alert.vesselName}</h4>

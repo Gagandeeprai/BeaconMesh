@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -165,9 +165,13 @@ export default function ActiveMissionPanel({
               <Radio className="w-3.5 h-3.5 animate-pulse" />
               <span>Rescue Mission Active</span>
             </div>
-            {responder && etaMin ? (
+            {responder && (etaMin ?? 0) > 0 ? (
               <span className="bg-blue-500/10 text-[#00e5ff] border border-blue-500/20 px-2 py-0.5 rounded font-bold">
                 ETA {etaMin} min
+              </span>
+            ) : responder && etaMin === 0 ? (
+              <span className="text-emerald-400 flex items-center gap-1.5 font-bold">
+                <CheckCircle className="w-3.5 h-3.5" /> On Scene
               </span>
             ) : (
               <span className="text-emerald-400 flex items-center gap-1.5">

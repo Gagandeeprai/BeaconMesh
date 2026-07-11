@@ -309,6 +309,26 @@ export default function App() {
   const handleTriggerAlert = (
     newAlertData: Omit<Alert, "id" | "time" | "location">,
   ) => {
+    // If the vessel ID doesn't exist in the fleet, create a temporary vessel
+    // so engine.triggerSOS() can find it and the full SOS pipeline runs correctly.
+    const exists = engine.vessels.some(v => v.id === newAlertData.vesselId);
+    if (!exists) {
+      const tempVessel = {
+        id: newAlertData.vesselId,
+        name: newAlertData.vesselName,
+        type: "Fishing" as const,
+        status: "Active" as const,
+        latitude: newAlertData.latitude,
+        longitude: newAlertData.longitude,
+        speed: 0,
+        heading: 0,
+        peopleOnboard: newAlertData.peopleOnboard,
+        cargo: "Unknown",
+        destination: "Unknown",
+      };
+      engine.vessels = [tempVessel, ...engine.vessels];
+    }
+
     engine.triggerSOS(
       newAlertData.vesselId,
       newAlertData.type,
@@ -561,6 +581,7 @@ export default function App() {
         return (
           <AlertsView
             alerts={displayAlerts}
+            vessels={displayVessels}
             onTriggerAlert={handleTriggerAlert}
             onSelectAlert={handleSelectAlert}
             setCurrentTab={setCurrentTab}

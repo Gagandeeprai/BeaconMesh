@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -47,7 +47,7 @@ export default function AnalyticsView() {
           <div>
             <span className="text-[10px] text-slate-500 uppercase tracking-wider font-mono font-bold block">Mean Rescue Intercept</span>
             <span className="text-xl font-bold text-slate-100 font-sans mt-0.5 block">24.5 min</span>
-            <span className="text-[10px] text-slate-400 font-mono">TARGET TARGET: 30.0 min</span>
+            <span className="text-[10px] text-slate-400 font-mono">TARGET: 30.0 min</span>
           </div>
         </div>
 
