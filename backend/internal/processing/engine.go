@@ -3,11 +3,17 @@ package processing
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/rand"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
 )
+
+// DefaultLoiteringThreshold is the default duration before a vessel is considered loitering.
+// This can be overridden at runtime via the configuration service (Person 2, Task 5).
+var DefaultLoiteringThreshold = 30 * time.Minute
 
 // VesselState holds the current known location and metadata for a vessel in-memory.
 type VesselState struct {
@@ -17,6 +23,7 @@ type VesselState struct {
 	Latitude    float64   `json:"latitude"`
 	Longitude   float64   `json:"longitude"`
 	Speed       float64   `json:"speed"`
+	Heading     float64   `json:"heading"`
 	LastUpdated time.Time `json:"lastUpdated"`
 	RiskLevel   string    `json:"riskLevel"`
 	RiskDetails string    `json:"riskDetails"`
@@ -30,39 +37,67 @@ type Engine struct {
 	entryTimes   map[string]time.Time
 	alerts       *AlertStore
 
-	// Benchmark state
+	// Configurable thresholds
+	loiteringThreshold time.Duration
+
+	// Benchmark state — benchmarkCancel is guarded by mu to avoid data races.
 	benchmarkActive int32 // atomic bool
 	benchmarkCancel context.CancelFunc
 
-	// Performance metrics
-	metricsMu      sync.Mutex
-	totalProcessed uint64
-	totalLatency   time.Duration
-	lastThroughput float64
-	lastAvgLatency float64
-	metricReset    time.Time
+	// Performance metrics with quantile tracking
+	metricsMu       sync.Mutex
+	totalProcessed  uint64
+	totalLatency    time.Duration
+	latencySamples  []float64 // rolling latency samples in microseconds
+	lastThroughput  float64
+	lastAvgLatency  float64
+	lastP50Latency  float64
+	lastP99Latency  float64
+	lastMaxLatency  float64
+	metricReset     time.Time
 }
 
 func NewEngine(alerts *AlertStore) *Engine {
 	return &Engine{
-		vesselStates: make(map[string]VesselState),
-		zones:        GetPredefinedZones(),
-		entryTimes:   make(map[string]time.Time),
-		alerts:       alerts,
-		metricReset:  time.Now(),
+		vesselStates:       make(map[string]VesselState),
+		zones:              GetPredefinedZones(),
+		entryTimes:         make(map[string]time.Time),
+		alerts:             alerts,
+		loiteringThreshold: DefaultLoiteringThreshold,
+		latencySamples:     make([]float64, 0, 10000),
+		metricReset:        time.Now(),
 	}
 }
 
+// SetLoiteringThreshold updates the configurable loitering duration threshold at runtime.
+func (e *Engine) SetLoiteringThreshold(d time.Duration) {
+	e.mu.Lock()
+	e.loiteringThreshold = d
+	e.mu.Unlock()
+}
+
+// GetLoiteringThreshold returns the current loitering threshold.
+func (e *Engine) GetLoiteringThreshold() time.Duration {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.loiteringThreshold
+}
+
 // ProcessUpdate ingests a single vessel update, runs rules and calculates operational risk.
-// ponytail: processes a single update concurrently and updates the metrics thread-safely.
 func (e *Engine) ProcessUpdate(id string, name string, vType string, lat, lon, speed float64, waveHeight, windSpeed, visibility float64) {
+	e.ProcessUpdateWithHeading(id, name, vType, lat, lon, speed, 0.0, waveHeight, windSpeed, visibility)
+}
+
+// ProcessUpdateWithHeading ingests a vessel update including heading for course anomaly detection.
+func (e *Engine) ProcessUpdateWithHeading(id string, name string, vType string, lat, lon, speed, heading float64, waveHeight, windSpeed, visibility float64) {
 	startTime := time.Now()
 
 	// 1. Calculate operational risk based on weather parameters
 	riskLevel, riskDetails := CalculateRisk(vType, speed, waveHeight, windSpeed, visibility)
 
-	// 2. Save vessel state in memory
+	// 2. Save vessel state in memory and collect previous state for anomaly detection
 	e.mu.Lock()
+	prevState, hadPrev := e.vesselStates[id]
 	e.vesselStates[id] = VesselState{
 		ID:          id,
 		Name:        name,
@@ -70,16 +105,27 @@ func (e *Engine) ProcessUpdate(id string, name string, vType string, lat, lon, s
 		Latitude:    lat,
 		Longitude:   lon,
 		Speed:       speed,
+		Heading:     heading,
 		LastUpdated: startTime,
 		RiskLevel:   riskLevel,
 		RiskDetails: riskDetails,
 	}
 
 	// 3. Evaluate geofence rules
-	violations := EvaluateRules(id, name, vType, lat, lon, speed, e.zones, e.entryTimes)
+	violations := EvaluateRules(id, name, vType, lat, lon, speed, e.zones, e.entryTimes, e.loiteringThreshold)
+
+	// 4. Check AIS Silence — detect vessels whose last update is stale
+	if hadPrev {
+		silenceViolations := CheckAISSilence(id, name, prevState.LastUpdated, startTime)
+		violations = append(violations, silenceViolations...)
+
+		// 5. Check Course Anomaly — detect sudden heading shifts
+		courseViolations := CheckCourseAnomaly(id, name, prevState.Heading, heading, speed)
+		violations = append(violations, courseViolations...)
+	}
 	e.mu.Unlock()
 
-	// 4. Register active violations in AlertStore
+	// 6. Register active violations in AlertStore
 	for _, v := range violations {
 		// Severity mapping to fit frontend expectations ("High", "Medium", "Low")
 		severity := "Medium"
@@ -106,11 +152,13 @@ func (e *Engine) ProcessUpdate(id string, name string, vType string, lat, lon, s
 	}
 
 	elapsed := time.Since(startTime)
+	latencyUs := float64(elapsed.Nanoseconds()) / 1000.0
 
-	// 5. Update metrics
+	// 7. Update metrics with latency sample
 	e.metricsMu.Lock()
 	e.totalProcessed++
 	e.totalLatency += elapsed
+	e.latencySamples = append(e.latencySamples, latencyUs)
 	e.metricsMu.Unlock()
 }
 
@@ -132,23 +180,43 @@ func (e *Engine) BenchmarkActive() bool {
 }
 
 // ToggleBenchmark switches the background high-volume load generator on or off.
+// Data race fix: benchmarkCancel is now guarded by e.mu to prevent concurrent read/write.
 func (e *Engine) ToggleBenchmark(enable bool) {
 	if enable {
 		if atomic.CompareAndSwapInt32(&e.benchmarkActive, 0, 1) {
 			ctx, cancel := context.WithCancel(context.Background())
+			e.mu.Lock()
 			e.benchmarkCancel = cancel
+			e.mu.Unlock()
 			e.startBenchmarkLoop(ctx)
 		}
 	} else {
 		if atomic.CompareAndSwapInt32(&e.benchmarkActive, 1, 0) {
+			e.mu.Lock()
 			if e.benchmarkCancel != nil {
 				e.benchmarkCancel()
 			}
+			e.mu.Unlock()
 		}
 	}
 }
 
-// GetMetrics computes and returns current throughput and latency metrics.
+// percentile returns the p-th percentile from a sorted slice of float64.
+func percentile(sorted []float64, p float64) float64 {
+	if len(sorted) == 0 {
+		return 0.0
+	}
+	rank := p / 100.0 * float64(len(sorted)-1)
+	lower := int(math.Floor(rank))
+	upper := int(math.Ceil(rank))
+	if lower == upper {
+		return sorted[lower]
+	}
+	frac := rank - float64(lower)
+	return sorted[lower]*(1-frac) + sorted[upper]*frac
+}
+
+// GetMetrics computes and returns current throughput and latency metrics including p50/p99/max.
 func (e *Engine) GetMetrics() map[string]interface{} {
 	e.metricsMu.Lock()
 	defer e.metricsMu.Unlock()
@@ -163,8 +231,22 @@ func (e *Engine) GetMetrics() map[string]interface{} {
 		} else {
 			e.lastAvgLatency = 0.0
 		}
+
+		// Calculate p50, p99, max from latency samples
+		if len(e.latencySamples) > 0 {
+			sort.Float64s(e.latencySamples)
+			e.lastP50Latency = percentile(e.latencySamples, 50.0)
+			e.lastP99Latency = percentile(e.latencySamples, 99.0)
+			e.lastMaxLatency = e.latencySamples[len(e.latencySamples)-1]
+		} else {
+			e.lastP50Latency = 0.0
+			e.lastP99Latency = 0.0
+			e.lastMaxLatency = 0.0
+		}
+
 		e.totalProcessed = 0
 		e.totalLatency = 0
+		e.latencySamples = e.latencySamples[:0] // reset without deallocating
 		e.metricReset = now
 	}
 
@@ -172,6 +254,9 @@ func (e *Engine) GetMetrics() map[string]interface{} {
 		"benchmarkActive":   e.BenchmarkActive(),
 		"throughput":        e.lastThroughput,
 		"avgLatencyUs":      e.lastAvgLatency,
+		"p50LatencyUs":      e.lastP50Latency,
+		"p99LatencyUs":      e.lastP99Latency,
+		"maxLatencyUs":      e.lastMaxLatency,
 		"activeAlertsCount": len(e.alerts.GetActiveAlerts()),
 	}
 }
