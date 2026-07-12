@@ -1,4 +1,4 @@
-# BeaconMesh Platform v2 — 4-Person Simultaneous Task Board
+ll# BeaconMesh Platform v2 — 4-Person Simultaneous Task Board
 
 This task board splits the development of the **BeaconMesh Maritime Surveillance Platform (v2 PRD)** into four parallelized roles. Each role has clear API boundaries, mock interfaces, and zero direct build-time dependencies on the other roles to maximize development speed.
 
@@ -122,7 +122,9 @@ This task board splits the development of the **BeaconMesh Maritime Surveillance
   - Write SQL migrations for: `vessel_history` (coordinates, timestamp, trajectory lines) and `alerts_history`.
   - Set up R-Tree spatial indexing for fast regional historical querying.
 - [ ] **2. Data Generation Simulator (FastAPI)**
-  - Implement simulated generation of cargo, fishing, tankers, weather files, and scripted vessel violations.
+  - [x] Implement 1000 ship generation in python streamer
+  - [x] Restart python streamer
+  - [x] Verify UI updatesd vessel violations.
   - Support modes: *Replay*, *Random*, and *Scenario Injection*.
 - [ ] **3. Historical Replay Engine**
   - Build a backend playback service querying PostGIS trajectories by time interval and streaming coordinates sequentially via WebSockets.

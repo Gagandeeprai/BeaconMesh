@@ -104,6 +104,7 @@ func main() {
 	aisSvc.StartBackgroundRefresh(ctx)
 
 	// ── 4. Processing Engine + Alert Store ────────────────────────────────────
+	processing.InitLogger()
 	alertStore := processing.NewAlertStore()
 	processingEngine := processing.NewEngine(alertStore)
 	processingHandler := processing.NewHandler(processingEngine, alertStore)
@@ -120,8 +121,6 @@ func main() {
 	// Metrics handler: wraps processing engine + latency tracker.
 	metricsHandler := gateway.NewMetricsHandler(processingEngine, latencyTracker)
 
-	// Stress-test handler: proxies Administrator-only toggle to the engine.
-	stressHandler := gateway.NewStressHandler(processingEngine)
 
 	// WebSocket hub: broadcasts vessel+alert snapshots to all connected clients.
 	var wsHub *gateway.Hub
@@ -134,7 +133,7 @@ func main() {
 			"clients": wsHub_clientCount(wsHub),
 		}
 	})
-	wsHub.StartBroadcastLoop(2 * time.Second)
+	wsHub.StartBroadcastLoop(1 * time.Second)
 
 	aisHandler := aisHttp.NewAISHandler(aisSvc)
 
@@ -178,6 +177,15 @@ func main() {
 	// Health check
 	mux.HandleFunc("GET /api/v1/health", aisHandler.GetHealth)
 
+	// Simulation reset (Hackathon specific)
+	mux.HandleFunc("POST /api/v1/simulation/reset", func(w http.ResponseWriter, r *http.Request) {
+		// Signal python script to reset
+		_ = os.WriteFile("../simulation/reset.flag", []byte("1"), 0644)
+		// Reset backend engine state
+		processingEngine.Reset()
+		w.WriteHeader(http.StatusOK)
+	})
+
 	// Auth login → returns JWT
 	mux.HandleFunc("POST /api/v1/auth/login", gateway.LoginHandler)
 
@@ -209,9 +217,6 @@ func main() {
 	mux.Handle("GET /api/v1/zones",
 		gateway.HandlerFunc(processingHandler.GetZones, gateway.JWTAuth, gateway.RequireRole("Operator")))
 
-	mux.Handle("GET /api/v1/processing/threats",
-		gateway.HandlerFunc(processingHandler.GetThreats, gateway.JWTAuth, gateway.RequireRole("Operator")))
-
 	mux.Handle("POST /api/v1/telemetry",
 		gateway.HandlerFunc(processingHandler.IngestTelemetry, gateway.JWTAuth, gateway.RequireRole("Operator")))
 
@@ -224,16 +229,9 @@ func main() {
 	mux.Handle("PUT /api/v1/config/{key}",
 		gateway.HandlerFunc(configHandler.UpdateConfig, gateway.JWTAuth, gateway.RequireRole("Administrator")))
 
-	// Stress-test toggle — Task 7
-	mux.Handle("POST /api/v1/admin/stress-test",
-		gateway.HandlerFunc(stressHandler.ToggleStressTest, gateway.JWTAuth, gateway.RequireRole("Administrator")))
 
-	// Legacy benchmark endpoint (kept for backward compatibility, Administrator-gated)
 	mux.Handle("GET /api/v1/processing/metrics",
 		gateway.HandlerFunc(processingHandler.GetMetrics, gateway.JWTAuth, gateway.RequireRole("Analyst")))
-
-	mux.Handle("POST /api/v1/processing/benchmark",
-		gateway.HandlerFunc(processingHandler.ToggleBenchmark, gateway.JWTAuth, gateway.RequireRole("Administrator")))
 
 	// Emergency + rescue (Operator+)
 	mux.Handle("POST /api/v1/emergency",

@@ -93,6 +93,20 @@ func (s *AlertStore) GetActiveAlerts() []Alert {
 	return result
 }
 
+// GetActiveAlertsForVessel returns active alerts for a specific vessel.
+func (s *AlertStore) GetActiveAlertsForVessel(vesselID string) []Alert {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	result := []Alert{}
+	for _, a := range s.alerts {
+		if a.Status != "Resolved" && a.VesselID == vesselID {
+			result = append(result, *a)
+		}
+	}
+	return result
+}
+
 // GetAllAlerts returns all alerts, resolved or not.
 func (s *AlertStore) GetAllAlerts() []Alert {
 	s.mu.RLock()
@@ -103,4 +117,11 @@ func (s *AlertStore) GetAllAlerts() []Alert {
 		result = append(result, *a)
 	}
 	return result
+}
+
+// Reset clears all active and resolved alerts from the store.
+func (s *AlertStore) Reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.alerts = make(map[string]*Alert)
 }

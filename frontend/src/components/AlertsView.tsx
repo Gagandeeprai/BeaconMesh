@@ -87,7 +87,7 @@ export default function AlertsView({
     const matchesSeverity = severityFilter === "All" || a.severity === severityFilter;
     const matchesStatus = statusFilter === "All" || a.status === statusFilter;
     return matchesSearch && matchesSeverity && matchesStatus;
-  });
+  }).reverse();
 
   return (
     <div id="alerts-view-container" className="p-8 space-y-6 overflow-y-auto max-h-[calc(100vh-80px)]">
@@ -127,13 +127,181 @@ export default function AlertsView({
             <option value="Resolved">Resolved</option>
           </select>
         </div>
+
+        <button
+          id="btn-toggle-trigger-form"
+          onClick={() => setShowTriggerForm(!showTriggerForm)}
+          className="flex items-center gap-1.5 py-1.5 px-4 rounded bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-md shadow-red-900/10 cursor-pointer transition-all"
+        >
+          <Plus className="w-4 h-4" />
+          Trigger Distress Broadcast
+        </button>
       </div>
+
+      {/* Trigger Mock Distress Broadcast Form Dropdown */}
+      {showTriggerForm && (
+        <form 
+          id="mock-trigger-form"
+          onSubmit={handleSubmitMockAlert} 
+          className="bg-[#020d1a] border border-red-900/30 rounded-xl p-6 shadow-xl space-y-4 max-w-3xl animate-fadeIn"
+        >
+          <h4 className="text-sm font-bold text-red-200 uppercase tracking-wider font-mono flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-500" />
+            Distress Beacon Simulation Form
+          </h4>
+          <p className="text-xs text-slate-400 font-sans leading-relaxed">
+            Fill this form to simulate an incoming VHF Digital Selective Calling (DSC) distress broadcast from a regional vessel along the Karnataka coastline. This will update the map in real-time.
+          </p>
+
+          {/* Vessel Picker — only shows Active vessels not already in distress */}
+          <div className="bg-[#04111f] border border-[#0d2238] rounded-lg p-3 space-y-1.5">
+            <label className="text-[10px] text-[#00e5ff] font-mono font-bold uppercase flex items-center justify-between">
+              <span className="flex items-center gap-1.5"><Ship className="w-3 h-3" /> Quick-Select Fleet Vessel</span>
+              <span className="text-slate-500 normal-case font-normal">
+                {sosCandidates.length} eligible vessel{sosCandidates.length !== 1 ? "s" : ""}
+              </span>
+            </label>
+            <select
+              id="vessel-picker-dropdown"
+              defaultValue=""
+              onChange={(e) => handlePickFleetVessel(e.target.value)}
+              className="w-full bg-[#05162a] text-xs text-slate-200 border border-[#0d2238] rounded-lg px-3 py-2 focus:outline-none focus:border-[#00e5ff] disabled:opacity-50"
+              disabled={sosCandidates.length === 0}
+            >
+              <option value="">
+                {sosCandidates.length === 0 ? "— No eligible vessels (all in distress or offline) —" : "— Or type custom vessel below —"}
+              </option>
+              {sosCandidates.map(v => (
+                <option key={v.id} value={v.id}>
+                  {v.name} ({v.id}) · {v.type} · {v.peopleOnboard} crew
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="text-[10px] text-slate-400 font-mono font-bold uppercase block mb-1">Vessel Name</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Malpe Queen"
+                value={formVesselName}
+                onChange={(e) => setFormVesselName(e.target.value)}
+                className="w-full bg-[#05162a] text-xs text-slate-200 border border-[#0d2238] rounded-lg px-3 py-2 focus:outline-none focus:border-red-500"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-400 font-mono font-bold uppercase block mb-1">Vessel Registration ID</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. IND-KA-12-8844"
+                value={formVesselId}
+                onChange={(e) => setFormVesselId(e.target.value)}
+                className="w-full bg-[#05162a] text-xs text-slate-200 border border-[#0d2238] rounded-lg px-3 py-2 focus:outline-none focus:border-red-500"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-400 font-mono font-bold uppercase block mb-1">Emergency Nature</label>
+              <select
+                value={formType}
+                onChange={(e) => setFormType(e.target.value as AlertType)}
+                className="w-full bg-[#05162a] text-xs text-slate-200 border border-[#0d2238] rounded-lg px-3 py-2 focus:outline-none focus:border-red-500"
+              >
+                {EMERGENCY_TYPES.map(t => (
+                  <option key={t.name} value={t.name}>{t.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label className="text-[10px] text-slate-400 font-mono font-bold uppercase block mb-1">Priority</label>
+              <select
+                value={formSeverity}
+                onChange={(e) => setFormSeverity(e.target.value as AlertSeverity)}
+                className="w-full bg-[#05162a] text-xs text-slate-200 border border-[#0d2238] rounded-lg px-3 py-2 focus:outline-none"
+              >
+                <option value="High">High Priority</option>
+                <option value="Medium">Medium Priority</option>
+                <option value="Low">Low Priority</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-400 font-mono font-bold uppercase block mb-1">Crew Size Onboard</label>
+              <input
+                type="number"
+                min="1"
+                required
+                value={formPeopleOnboard}
+                onChange={(e) => setFormPeopleOnboard(Number(e.target.value))}
+                className="w-full bg-[#05162a] text-xs text-slate-200 border border-[#0d2238] rounded-lg px-3 py-2 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-400 font-mono font-bold uppercase block mb-1">Latitude (N)</label>
+              <input
+                type="number"
+                step="0.001"
+                min="12.4"
+                max="13.7"
+                required
+                value={formLat}
+                onChange={(e) => setFormLat(Number(e.target.value))}
+                className="w-full bg-[#05162a] text-xs text-slate-200 border border-[#0d2238] rounded-lg px-3 py-2 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-400 font-mono font-bold uppercase block mb-1">Longitude (E)</label>
+              <input
+                type="number"
+                step="0.001"
+                min="73.4"
+                max="75.1"
+                required
+                value={formLng}
+                onChange={(e) => setFormLng(Number(e.target.value))}
+                className="w-full bg-[#05162a] text-xs text-slate-200 border border-[#0d2238] rounded-lg px-3 py-2 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[10px] text-slate-400 font-mono font-bold uppercase block mb-1">Distress Situation Brief</label>
+            <textarea
+              rows={3}
+              placeholder="Describe the nature of fire, mechanical, water ingress, or medical casualty in detail..."
+              value={formDesc}
+              onChange={(e) => setFormDesc(e.target.value)}
+              className="w-full bg-[#05162a] text-xs text-slate-200 border border-[#0d2238] rounded-lg p-3 focus:outline-none focus:border-red-500"
+            />
+          </div>
+
+          <div className="flex gap-3 justify-end pt-2">
+            <button
+              type="button"
+              onClick={() => setShowTriggerForm(false)}
+              className="py-1.5 px-4 text-xs font-semibold rounded text-slate-400 hover:text-slate-200 border border-[#0d2238] hover:bg-[#05162a]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="py-1.5 px-5 text-xs font-bold rounded bg-red-600 hover:bg-red-500 text-white shadow-md cursor-pointer"
+            >
+              Simulate Broadcast
+            </button>
+          </div>
+        </form>
+      )}
 
       {/* Main Alerts List Grid */}
       <div id="alerts-grid" className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {filteredAlerts.length === 0 ? (
           <div className="col-span-2 text-center py-16 bg-[#020a14] border border-[#0d2238] rounded-xl text-slate-500">
-            No maritime encroachments or violations matched your filter conditions.
+            No maritime emergencies matched your filter conditions.
           </div>
         ) : (
           filteredAlerts.map((alert) => {

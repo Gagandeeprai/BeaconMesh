@@ -1,13 +1,10 @@
 package processing
 
 import (
-	"context"
 	"fmt"
 	"math"
-	"math/rand"
 	"sort"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/beaconmesh/backend/internal/database"
@@ -19,19 +16,16 @@ var DefaultLoiteringThreshold = 30 * time.Minute
 
 // VesselState holds the current known location and metadata for a vessel in-memory.
 type VesselState struct {
-	ID               string    `json:"id"`
-	Name             string    `json:"name"`
-	Type             string    `json:"type"`
-	Latitude         float64   `json:"latitude"`
-	Longitude        float64   `json:"longitude"`
-	Speed            float64   `json:"speed"`
-	Heading          float64   `json:"heading"`
-	LastUpdated      time.Time `json:"lastUpdated"`
-	RiskLevel        string    `json:"riskLevel"`
-	RiskDetails      string    `json:"riskDetails"`
-	ThreatScore      int       `json:"threatScore"`
-	ThreatIndicators []string  `json:"threatIndicators"`
-	ActiveViolations []string  `json:"activeViolations"`
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Type        string    `json:"type"`
+	Latitude    float64   `json:"latitude"`
+	Longitude   float64   `json:"longitude"`
+	Speed       float64   `json:"speed"`
+	Heading     float64   `json:"heading"`
+	LastUpdated time.Time `json:"lastUpdated"`
+	RiskLevel   string    `json:"riskLevel"`
+	RiskDetails string    `json:"riskDetails"`
 }
 
 // Engine acts as the central High-Speed Processing Engine state and coordinator.
@@ -44,10 +38,6 @@ type Engine struct {
 
 	// Configurable thresholds
 	loiteringThreshold time.Duration
-
-	// Benchmark state — benchmarkCancel is guarded by mu to avoid data races.
-	benchmarkActive int32 // atomic bool
-	benchmarkCancel context.CancelFunc
 
 	// Performance metrics with quantile tracking
 	metricsMu       sync.Mutex
@@ -71,6 +61,17 @@ func NewEngine(alerts *AlertStore) *Engine {
 		loiteringThreshold: DefaultLoiteringThreshold,
 		latencySamples:     make([]float64, 0, 10000),
 		metricReset:        time.Now(),
+	}
+}
+
+// Reset clears all vessel states, tracking data, and alerts.
+func (e *Engine) Reset() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.vesselStates = make(map[string]VesselState)
+	e.entryTimes = make(map[string]time.Time)
+	if e.alerts != nil {
+		e.alerts.Reset()
 	}
 }
 
@@ -103,6 +104,19 @@ func (e *Engine) ProcessUpdateWithHeading(id string, name string, vType string, 
 	// 2. Save vessel state in memory and collect previous state for anomaly detection
 	e.mu.Lock()
 	prevState, hadPrev := e.vesselStates[id]
+	vState := VesselState{
+		ID:          id,
+		Name:        name,
+		Type:        vType,
+		Latitude:    lat,
+		Longitude:   lon,
+		Speed:       speed,
+		Heading:     heading,
+		LastUpdated: startTime,
+		RiskLevel:   riskLevel,
+		RiskDetails: riskDetails,
+	}
+	e.vesselStates[id] = vState
 
 	// 3. Evaluate geofence rules
 	violations := EvaluateRules(id, name, vType, lat, lon, speed, e.zones, e.entryTimes, e.loiteringThreshold)
@@ -117,31 +131,20 @@ func (e *Engine) ProcessUpdateWithHeading(id string, name string, vType string, 
 		violations = append(violations, courseViolations...)
 	}
 
-	// 5.5 Calculate Threat Score using the Vessel Intelligence Engine
-	var prevPtr *VesselState
-	if hadPrev {
-		prevPtr = &prevState
+	// Update RiskLevel based on violations
+	for _, v := range violations {
+		if v.Severity == "critical" || v.Severity == "emergency" {
+			vState.RiskLevel = "critical"
+			vState.RiskDetails = v.Description
+			break
+		}
 	}
-	threatScore, threatIndicators, activeViolations := CalculateThreatScore(id, violations, speed, prevPtr, e.entryTimes)
+	e.vesselStates[id] = vState
 
-	e.vesselStates[id] = VesselState{
-		ID:               id,
-		Name:             name,
-		Type:             vType,
-		Latitude:         lat,
-		Longitude:        lon,
-		Speed:            speed,
-		Heading:          heading,
-		LastUpdated:      startTime,
-		RiskLevel:        riskLevel,
-		RiskDetails:      riskDetails,
-		ThreatScore:      threatScore,
-		ThreatIndicators: threatIndicators,
-		ActiveViolations: activeViolations,
-	}
 	e.mu.Unlock()
 
 	// 6. Register active violations in AlertStore
+	currentViolationIDs := make(map[string]bool)
 	for _, v := range violations {
 		// Severity mapping to fit frontend expectations ("High", "Medium", "Low")
 		severity := "Medium"
@@ -151,8 +154,11 @@ func (e *Engine) ProcessUpdateWithHeading(id string, name string, vType string, 
 			severity = "Low"
 		}
 
+		alertID := fmt.Sprintf("ALERT-%s-%s", id, v.RuleName)
+		currentViolationIDs[alertID] = true
+
 		alert := Alert{
-			ID:            fmt.Sprintf("ALERT-%s-%s", id, v.RuleName),
+			ID:            alertID,
 			VesselID:      id,
 			VesselName:    name,
 			Type:          v.RuleName,
@@ -168,19 +174,25 @@ func (e *Engine) ProcessUpdateWithHeading(id string, name string, vType string, 
 
 		e.alerts.AddOrUpdateAlert(alert)
 
-		if atomic.LoadInt32(&e.benchmarkActive) == 0 {
-			go func(a Alert) {
-				_ = database.RecordAlertHistory(database.DB, a.ID, a.VesselID, a.VesselName, a.Type, a.Location, a.Status, a.Severity, a.Description)
-			}(alert)
+		go func(a Alert) {
+			_ = database.RecordAlertHistory(database.DB, a.ID, a.VesselID, a.VesselName, a.Type, a.Location, a.Status, a.Severity, a.Description)
+		}(alert)
+	}
+
+	// Auto-resolve any previous alerts for this vessel that are no longer actively violated
+	for _, a := range e.alerts.GetActiveAlertsForVessel(id) {
+		if !currentViolationIDs[a.ID] {
+			e.alerts.ResolveAlert(a.ID)
 		}
 	}
 
+	// Log coordinates to JSONL file asynchronously
+	go LogTelemetry(vState)
+
 	// Async log coordinates to database for persistent historical tracking
-	if atomic.LoadInt32(&e.benchmarkActive) == 0 {
-		go func() {
-			_ = database.RecordVesselHistory(database.DB, id, name, vType, lat, lon, speed, riskLevel)
-		}()
-	}
+	go func() {
+		_ = database.RecordVesselHistory(database.DB, id, name, vType, lat, lon, speed, riskLevel)
+	}()
 
 	elapsed := time.Since(startTime)
 	latencyUs := float64(elapsed.Nanoseconds()) / 1000.0
@@ -205,32 +217,7 @@ func (e *Engine) GetVesselStates() []VesselState {
 	return result
 }
 
-// BenchmarkActive returns whether the high-volume ingestion benchmark is currently running.
-func (e *Engine) BenchmarkActive() bool {
-	return atomic.LoadInt32(&e.benchmarkActive) == 1
-}
 
-// ToggleBenchmark switches the background high-volume load generator on or off.
-// Data race fix: benchmarkCancel is now guarded by e.mu to prevent concurrent read/write.
-func (e *Engine) ToggleBenchmark(enable bool) {
-	if enable {
-		if atomic.CompareAndSwapInt32(&e.benchmarkActive, 0, 1) {
-			ctx, cancel := context.WithCancel(context.Background())
-			e.mu.Lock()
-			e.benchmarkCancel = cancel
-			e.mu.Unlock()
-			e.startBenchmarkLoop(ctx)
-		}
-	} else {
-		if atomic.CompareAndSwapInt32(&e.benchmarkActive, 1, 0) {
-			e.mu.Lock()
-			if e.benchmarkCancel != nil {
-				e.benchmarkCancel()
-			}
-			e.mu.Unlock()
-		}
-	}
-}
 
 // percentile returns the p-th percentile from a sorted slice of float64.
 func percentile(sorted []float64, p float64) float64 {
@@ -282,7 +269,6 @@ func (e *Engine) GetMetrics() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"benchmarkActive":   e.BenchmarkActive(),
 		"throughput":        e.lastThroughput,
 		"avgLatencyUs":      e.lastAvgLatency,
 		"p50LatencyUs":      e.lastP50Latency,
@@ -292,64 +278,3 @@ func (e *Engine) GetMetrics() map[string]interface{} {
 	}
 }
 
-func (e *Engine) startBenchmarkLoop(ctx context.Context) {
-	// Pre-create simulated vessel data to avoid allocating in loop
-	vesselCount := 1000
-	ids := make([]string, vesselCount)
-	names := make([]string, vesselCount)
-	types := []string{"Cargo", "Tanker", "Fishing", "Passenger", "Tug"}
-
-	for i := 0; i < vesselCount; i++ {
-		ids[i] = fmt.Sprintf("BENCH-%04d", i)
-		names[i] = fmt.Sprintf("Vessel %04d", i)
-	}
-
-	// Spin up workers
-	workers := 8
-	jobs := make(chan int, 100000)
-
-	for w := 0; w < workers; w++ {
-		go func() {
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case idx := <-jobs:
-					id := ids[idx]
-					name := names[idx]
-					vType := types[idx%len(types)]
-					// Random wander coordinate within Mangalore
-					lat := 12.3 + rand.Float64()*1.3
-					lon := 73.3 + rand.Float64()*1.65
-					speed := 2.0 + rand.Float64()*25.0
-
-					e.ProcessUpdate(id, name, vType, lat, lon, speed, 1.5, 10.0, 10000.0)
-				}
-			}
-		}()
-	}
-
-	// Ingestion scheduler: targets 50,000 updates/second.
-	// 50,000 updates/sec = 5,000 updates every 100ms.
-	go func() {
-		defer close(jobs)
-		ticker := time.NewTicker(10 * time.Millisecond)
-		defer ticker.Stop()
-
-		batchSize := 500 // 50,000 updates per sec / 100 ticks per sec = 500 per tick
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				for i := 0; i < batchSize; i++ {
-					select {
-					case jobs <- rand.Intn(vesselCount):
-					default: // Skip if channel is full to prevent freezing
-					}
-				}
-			}
-		}
-	}()
-}

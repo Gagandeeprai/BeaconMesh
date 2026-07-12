@@ -121,7 +121,7 @@ export default function Header({
                           <span className="text-[10px] text-slate-500 font-mono">{alert.time}</span>
                         </div>
                         <p className="text-[11px] text-slate-400 truncate mt-0.5 font-mono">
-                          Vessel: {alert.vesselName} ({alert.id})
+                          Vessel: {alert.vesselName} ({alert.vesselID})
                         </p>
                         <p className="text-[10px] text-red-400 font-mono mt-1 flex items-center gap-1">
                           <Clock className="w-3 h-3" /> ETA Responders: {alert.etaMin || "TBD"}m

@@ -37,6 +37,28 @@ const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8080";
 export default function App() {
   const [currentTab, setCurrentTab] = useState<string>("dashboard");
   const [mode, setMode] = useState<"live" | "hybrid" | "simulation">("hybrid");
+  const [authToken, setAuthToken] = useState<string | null>(null);
+
+  // Auto-login for development integration
+  useEffect(() => {
+    const login = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: "admin", password: "beacon2026" })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setAuthToken(data.token);
+          
+          // Reset simulation on page refresh (Hackathon specific)
+          fetch(`${API_BASE}/api/v1/simulation/reset`, { method: "POST" }).catch(() => {});
+        }
+      } catch (e) {}
+    };
+    login();
+  }, []);
 
   // State Management (synced from central SimulationEngine)
   const [engine] = useState(
@@ -96,115 +118,62 @@ export default function App() {
     }
   };
 
-  // 1-second Simulation Engine Ticker Loop + Telemetry Ingestion
+  // Real-time WebSocket connection to Backend
   useEffect(() => {
-    if (mode === "live") return;
-    const interval = setInterval(() => {
-      engine.tick(weather, mode);
-      setVessels([...engine.vessels]);
-      setAlerts([...engine.alerts]);
-      setMissions([...engine.missions]);
-      setNetworkTraces([...engine.networkTraces]);
-
-      // Push telemetry for all simulated vessels to Go backend processing engine
-      engine.vessels.forEach(async (v) => {
-        if (v.isLiveAIS) return;
-        try {
-          await fetch(`${API_BASE}/api/v1/telemetry`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              id: v.id,
-              name: v.name,
-              type: v.type,
-              latitude: v.latitude,
-              longitude: v.longitude,
-              speed: v.speed,
-              waveHeight: weather.waveHeight,
-              windSpeed: weather.windSpeed,
-              visibility: weather.visibility * 1000.0, // convert km to meters
-            }),
-          });
-        } catch (err) {
-          // ignore
-        }
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [weather, mode, engine]);
-
-  // Poll backend alerts (every 2 seconds) and merge into UI state
-  useEffect(() => {
-    const fetchBackendAlerts = async () => {
+    const wsUrl = API_BASE.replace(/^http/, "ws") + "/api/v1/ws";
+    const ws = new WebSocket(wsUrl);
+    
+    ws.onmessage = (event) => {
       try {
-        const res = await fetch(`${API_BASE}/api/v1/alerts`);
-        if (res.ok) {
-          const data = await res.json();
-          if (!data || !Array.isArray(data)) return;
-          setAlerts((prev) => {
-            const mergedMap = new Map<string, Alert>();
-            prev.forEach((a) => mergedMap.set(a.id, a));
-            data.forEach((a: Alert) => {
-              mergedMap.set(a.id, a);
+        const data = JSON.parse(event.data);
+        if (data.type === "telemetry") {
+          if (data.vessels) {
+            const mappedVessels = data.vessels.map((v: any) => {
+              const isSupport = engine.missions.some(m => (m.responder === v.name || m.responder === v.id) && m.status !== "Completed");
+              return {
+                ...v,
+                status: isSupport ? "Support" : (v.riskLevel === "critical" ? "Distress" : (v.id.startsWith("AIS-") ? "Offline" : "Active")),
+                isLiveAIS: v.id.startsWith("AIS-")
+              };
             });
-            const merged = Array.from(mergedMap.values());
-            engine.alerts = merged;
-            return merged;
-          });
+            setVessels(mappedVessels);
+            // Sync local engine so other frontend features don't break
+            engine.vessels = mappedVessels; 
+          }
+          if (data.alerts) {
+            setAlerts(data.alerts);
+            engine.alerts = data.alerts;
+            // Auto-deselect if the selected alert was resolved by the backend
+            setSelectedAlert(prev => {
+              if (prev && !data.alerts.find((a: Alert) => a.id === prev.id)) {
+                return null;
+              }
+              return prev;
+            });
+          }
         }
       } catch (err) {
-        // ignore
+        console.error("WS Parse Error:", err);
       }
     };
 
-    fetchBackendAlerts();
-    const interval = setInterval(fetchBackendAlerts, 2000);
-    return () => clearInterval(interval);
+    ws.onclose = () => {
+      console.log("WebSocket closed");
+    };
+
+    return () => ws.close();
   }, [engine]);
 
-  // 30-second AIS telemetry fetcher
-  useEffect(() => {
-    if (mode === "simulation") {
-      setLiveAISVessels([]);
-      return;
-    }
 
-    const fetchAIS = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/v1/ais`);
-        if (res.ok) {
-          const data = await res.json();
-          const mapped: Vessel[] = data.map((v: any) => ({
-            id: v.id,
-            name: v.name,
-            type: v.type,
-            status: "LiveAIS",
-            latitude: v.latitude,
-            longitude: v.longitude,
-            speed: v.speed,
-            heading: v.heading,
-            peopleOnboard: v.peopleOnboard,
-            cargo: v.cargo,
-            destination: v.destination,
-            isLiveAIS: true,
-          }));
-          setLiveAISVessels(mapped);
-        }
-      } catch (err) {
-        console.error("Failed to fetch AIS telemetry:", err);
-      }
-    };
 
-    fetchAIS();
-    const interval = setInterval(fetchAIS, 30000);
-    return () => clearInterval(interval);
-  }, [mode]);
 
   // 5-second poll for backend-triggered emergencies
   useEffect(() => {
     const pollEmergencies = async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/v1/emergency/pending`);
+        const res = await fetch(`${API_BASE}/api/v1/emergency/pending`, {
+          headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined
+        });
         if (!res.ok) return;
         const pending: Array<{ vessel_id: string; type: string; description: string }> = await res.json();
         for (const p of pending) {
@@ -230,7 +199,9 @@ export default function App() {
   useEffect(() => {
     const fetchWeather = async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/v1/weather`);
+        const res = await fetch(`${API_BASE}/api/v1/weather`, {
+          headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined
+        });
         if (res.ok) {
           const data = await res.json();
           setWeather({
@@ -259,7 +230,7 @@ export default function App() {
     fetchWeather();
     const interval = setInterval(fetchWeather, 600000);
     return () => clearInterval(interval);
-  }, []);
+  }, [authToken]);
 
   // Listen to SOS Alarms spawned inside the engine to sync selections
   useEffect(() => {
@@ -300,10 +271,10 @@ export default function App() {
   // Combined filters based on the selected mode
   const displayVessels =
     mode === "live"
-      ? liveAISVessels
+      ? vessels.filter(v => v.isLiveAIS)
       : mode === "hybrid"
-        ? [...vessels, ...liveAISVessels]
-        : vessels;
+        ? vessels
+        : vessels.filter(v => !v.isLiveAIS);
 
   const displayAlerts = mode === "live" ? [] : alerts;
   const displayMissions = mode === "live" ? [] : missions;
@@ -538,6 +509,7 @@ export default function App() {
                 onSelectVessel={handleSelectVessel}
                 networkTraces={networkTraces}
                 onTriggerPropagation={handleNetworkPropagation}
+                onViewDetailsClick={() => setCurrentTab("vessels")}
               />
               <SummaryCards
                 alerts={displayAlerts}

@@ -3,7 +3,6 @@ package processing
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 )
 
 type Handler struct {
@@ -116,32 +115,3 @@ func (h *Handler) GetMetrics(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(h.engine.GetMetrics())
 }
 
-// ToggleBenchmarkRequest toggles the benchmark mode.
-type ToggleBenchmarkRequest struct {
-	Enable bool `json:"enable"`
-}
-
-// ToggleBenchmark controls high-speed simulator load.
-func (h *Handler) ToggleBenchmark(w http.ResponseWriter, r *http.Request) {
-	var req ToggleBenchmarkRequest
-	// Fallback to query param if body is empty
-	if r.ContentLength == 0 {
-		enableStr := r.URL.Query().Get("enable")
-		enable, _ := strconv.ParseBool(enableStr)
-		req.Enable = enable
-	} else {
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
-			return
-		}
-	}
-
-	h.engine.ToggleBenchmark(req.Enable)
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"status":          "updated",
-		"benchmarkActive": h.engine.BenchmarkActive(),
-	})
-}
