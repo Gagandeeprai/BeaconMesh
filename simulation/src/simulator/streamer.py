@@ -19,16 +19,21 @@ class SimulatedShip:
         self.heading = heading
 
     def update(self):
+        # Specific logic for loitering SIM-05
+        if self.id == "SIM-05" and self.lat >= 13.16:
+            self.speed = 0.5 # Loiter
+
         # Move forward based on speed (knots to roughly degrees per tick)
         # 1 knot = 1.852 km/h. Let's just do a simple coordinate math for visual movement.
         distance = (self.speed * 0.0001)
         self.lat += distance * math.cos(math.radians(self.heading))
         self.lon += distance * math.sin(math.radians(self.heading))
         
-        # Add slight sinusoidal drift to heading
-        self.heading += random.uniform(-2, 2)
-        if self.heading < 0: self.heading += 360
-        if self.heading >= 360: self.heading -= 360
+        # Add slight sinusoidal drift to heading only if moving significantly
+        if self.speed > 1:
+            self.heading += random.uniform(-2, 2)
+            if self.heading < 0: self.heading += 360
+            if self.heading >= 360: self.heading -= 360
 
     def to_payload(self):
         return {
@@ -57,11 +62,11 @@ def get_initial_ships():
         SimulatedShip("SIM-02", "FV Bluefin", "Fishing", 12.47, 73.6, 15.0, 180), # Speed reduced to stagger exit (approx 12s)
         SimulatedShip("SIM-03", "MT Poseidon", "Tanker", 12.8, 74.2, 32.5, 120),
         SimulatedShip("SIM-04", "CG Rescuer", "Rescue", 12.4, 74.6, 42.0, 315),
-        SimulatedShip("SIM-05", "FV Seabird", "Fishing", 12.9, 74.4, 25.0, 210),
+        SimulatedShip("SIM-05", "FV Seabird", "Fishing", 13.14, 73.7, 10.0, 0), # Starts just outside ZONE-MIL-02, heading North
         SimulatedShip("SIM-06", "MV Horizon", "Cargo", 12.3, 74.9, 36.0, 225),
         SimulatedShip("SIM-07", "FV Yellowfin", "Fishing", 12.7, 74.3, 26.5, 230),
         SimulatedShip("SIM-08", "MT Atlantic", "Tanker", 12.5, 74.6, 31.0, 240),
-        SimulatedShip("SIM-09", "CG Sentinel", "Rescue", 13.12, 73.75, 10.0, 0), # Speed reduced to stagger entry (approx 30s)
+        SimulatedShip("SIM-09", "CG Sentinel", "Rescue", 13.18, 73.5, 15.0, 90), # Travelling horizontally (East) across ZONE-MIL-02
         SimulatedShip("SIM-10", "FV Albatross", "Fishing", 12.8, 74.7, 27.0, 250),
     ]
     
@@ -87,6 +92,39 @@ def run_streamer():
                 ships = get_initial_ships()
             except OSError:
                 pass
+
+        # Coast Guard Intercept Logic
+        target_ship = None
+        for s in ships:
+            # Check if any non-rescue ship is loitering inside ZONE-MIL-02
+            if s.type != "Rescue" and s.speed < 1.0 and (13.15 <= s.lat <= 13.55) and (73.55 <= s.lon <= 73.95):
+                target_ship = s
+                break
+        
+        if target_ship:
+            # Find closest Rescue ship
+            closest_rescue = None
+            min_dist = float('inf')
+            for s in ships:
+                if s.type == "Rescue":
+                    dist = math.hypot(s.lat - target_ship.lat, s.lon - target_ship.lon)
+                    if dist < min_dist:
+                        min_dist = dist
+                        closest_rescue = s
+            
+            if closest_rescue:
+                # Intercept! Set heading towards target
+                dy = target_ship.lon - closest_rescue.lon
+                dx = target_ship.lat - closest_rescue.lat
+                angle = math.degrees(math.atan2(dy, dx))
+                if angle < 0: angle += 360
+                
+                # Update heading and speed
+                if min_dist > 0.01:
+                    closest_rescue.heading = angle
+                    closest_rescue.speed = 40.0
+                else:
+                    closest_rescue.speed = target_ship.speed # intercept complete, match speed
 
         for ship in ships:
             ship.update()

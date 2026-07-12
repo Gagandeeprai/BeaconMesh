@@ -24,8 +24,9 @@ type VesselState struct {
 	Speed       float64   `json:"speed"`
 	Heading     float64   `json:"heading"`
 	LastUpdated time.Time `json:"lastUpdated"`
-	RiskLevel   string    `json:"riskLevel"`
-	RiskDetails string    `json:"riskDetails"`
+	RiskLevel        string    `json:"riskLevel"`
+	RiskDetails      string    `json:"riskDetails"`
+	ActiveViolations []string  `json:"activeViolations,omitempty"`
 }
 
 // Engine acts as the central High-Speed Processing Engine state and coordinator.

@@ -53,13 +53,31 @@ func EvaluateRules(vesselID string, name string, vType string, lat, lon, speed f
 
 			// Rule: Restricted Area Intrusion (military zones)
 			case "military-restricted":
-				violations = append(violations, RuleViolation{
-					RuleName:    "Restricted Area Intrusion",
-					Severity:    "critical",
-					Description: fmt.Sprintf("Vessel %s (%s) entered restricted %s.", name, vesselID, zone.Name),
-					Action:      "Contact vessel on VHF Channel 16. Notify Coast Guard command room immediately.",
-					Timestamp:   time.Now(),
-				})
+				if vType == "Rescue" || vType == "Coast Guard" {
+					violations = append(violations, RuleViolation{
+						RuleName:    "Checking its activity",
+						Severity:    "info",
+						Description: fmt.Sprintf("Rescue Vessel %s (%s) is intercepting or patrolling in %s.", name, vesselID, zone.Name),
+						Action:      "Monitor operation progress.",
+						Timestamp:   time.Now(),
+					})
+				} else if vType == "Fishing" {
+					violations = append(violations, RuleViolation{
+						RuleName:    "Illegal fishing",
+						Severity:    "critical",
+						Description: fmt.Sprintf("Fishing Vessel %s (%s) entered restricted %s.", name, vesselID, zone.Name),
+						Action:      "Scramble Coast Guard to intercept and board.",
+						Timestamp:   time.Now(),
+					})
+				} else {
+					violations = append(violations, RuleViolation{
+						RuleName:    "Restricted Area Intrusion",
+						Severity:    "critical",
+						Description: fmt.Sprintf("Vessel %s (%s) entered restricted %s.", name, vesselID, zone.Name),
+						Action:      "Contact vessel on VHF Channel 16. Notify Coast Guard command room immediately.",
+						Timestamp:   time.Now(),
+					})
+				}
 
 				// Rule: Loitering Detection — configurable threshold (default 30 minutes)
 				if timeSpent >= loiteringThreshold {
